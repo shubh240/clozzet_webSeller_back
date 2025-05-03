@@ -147,7 +147,8 @@ export const generateOtp = async (req, res) => {
         .json({ message: "Customer not found.", success: false });
     }
 
-    const otp = crypto.randomInt(100000, 999999).toString();
+    const otp = 1234
+    // const otp = crypto.randomInt(100000, 999999).toString();
     const otpExpiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000);
 
     customer.otp = otp;
