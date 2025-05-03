@@ -17,8 +17,8 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 import cors from "cors";
-
 dotenv.config({});
+
 
 const app = express();
 
