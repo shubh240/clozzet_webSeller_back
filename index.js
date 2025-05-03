@@ -1,5 +1,6 @@
 import express from "express";
 import dotenv from "dotenv";
+dotenv.config({});
 import cookieParser from "cookie-parser";
 import connectDB from "./config/database.js";
 import verifyRoute from "./routes/verifyRoute.js";
@@ -18,7 +19,6 @@ import { fileURLToPath } from "url";
 
 import cors from "cors";
 
-dotenv.config({});
 
 const app = express();
 
