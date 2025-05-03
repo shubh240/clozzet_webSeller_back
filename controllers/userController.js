@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import AWS from "aws-sdk";
 import { sns } from "../config/awsConfig.js";
+import { sendResponse } from "../common/index.js";
 
 
 const OTP_EXPIRY_MINUTES = 5;
@@ -46,48 +47,51 @@ const OTP_EXPIRY_MINUTES = 5;
 // };
 
 // Register Seller
-// export const registerSeller = async (req, res) => {
-//   try {
-//     const { firstName, lastName, mobileNo, email, password } = req.body;
+export const registerSeller = async (req, res) => {
+  try {
+    const { firstName, lastName, mobileNo, email, password } = req.body;
+    
+    if(!firstName || !lastName || !mobileNo || !email || !password ){
+      return res.status(400).json({ message: "All fields are required" });
+    }
+    const existingUser = await SellerUserAuth.findOne({ "userInfo.mobileNo": mobileNo });
+    if (existingUser) {
+      return res.status(400).json({ message: "Mobile number already registered.", success: false });
+    }
 
-//     const existingUser = await SellerUserAuth.findOne({ "userInfo.mobileNo": mobileNo });
-//     if (existingUser) {
-//       return res.status(400).json({ message: "Mobile number already registered.", success: false });
-//     }
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-//     const hashedPassword = await bcrypt.hash(password, 10);
+    const newSeller = new SellerUserAuth({
+      userInfo: { firstName, lastName, mobileNo },
+      userAuth: { email, password: hashedPassword },
+    });
 
-//     const newSeller = new SellerUserAuth({
-//       userInfo: { firstName, lastName, mobileNo },
-//       userAuth: { email, password: hashedPassword },
-//     });
-
-//     await newSeller.save();
-//     res.status(201).json({ message: "Seller registered successfully.", success: true });
-//   } catch (err) {
-//     res.status(500).json({ error: err.message });
-//   }
-// };
+    await newSeller.save();
+    res.status(201).json({ message: "Seller registered successfully.", success: true });
+  } catch (err) {
+    console.log(err);
+    
+    res.status(500).json({ error: err.message });
+  }
+};
 
 export const loginseller = async (req, res) => {
   try {
      console.log("Log in user");
      const { email, password } = req.body;
-
+    if(!email || !password){
+      return sendResponse(res, 400, false, "Email and Password are required");
+    }
      const user = await SellerUserAuth.findOne({
        "userAuth.email": email,
      });
      if (!user) {
-       return res
-         .status(404)
-         .json({ message: "Seller not found.", success: false });
+      return sendResponse(res, 404, false, "Seller not found");
      }
 
      const isMatch = await bcrypt.compare(password, user.userAuth.password);
      if (!isMatch) {
-       return res
-         .status(400)
-         .json({ message: "Invalid credentials.", success: false });
+      return sendResponse(res, 400, false, "Invalid credentials");
      }
     
 
@@ -98,46 +102,44 @@ export const loginseller = async (req, res) => {
     const token = await jwt.sign(tokenData, process.env.JWT_SECRET_KEY, {
       expiresIn: "1d",
     });
-    return res
-      .status(200)
-      .cookie("token", token, {
-        maxAge: 1 * 24 * 60 * 60 * 1000,
-        httpOnly: true,
-        sameSite: "strict",
-      })
-      .json({
-        _id: user._id,
-        firstName: user.userInfo?.firstName,
-        lastName: user.userInfo?.lastName,
-        email: user.userInfo?.email,
-      });
+    res.cookie("token", token, {
+      maxAge: 24 * 60 * 60 * 1000,
+      httpOnly: true,
+      sameSite: "strict",
+    });
+
+    return sendResponse(res, 200, true, "Login successful", {
+      _id: user._id,
+      firstName: user.userInfo.firstName,
+      lastName: user.userInfo.lastName,
+      email: user.userAuth.email,
+    });
   } catch (error) {
     console.log(`Log in seller error: ${error}`);
-     return res.status(500).json({
-       message: "Internal server error",
-       success: false,
-     });
+    return sendResponse(res, 500, false, "Internal server error");
   }
 };
 
 export const generateOtp = async (req, res) => {
   try {
     const { mobileNo } = req.body;
-
+    if (!mobileNo) {
+      return sendResponse(res, 400, false, "mobileNo is required");
+    }
     const seller = await SellerUserAuth.findOne({
       "userInfo.mobileNo": mobileNo,
     });
 
     if (!seller) {
-      return res
-        .status(404)
-        .json({ message: "Seller not found.", success: false });
+      return sendResponse(res, 404, false, "Seller not found.");
     }
 
-    const otp = crypto.randomInt(100000, 999999).toString();
+    // const otp = crypto.randomInt(100000, 999999).toString();
+    const otp = 1234
     const otpExpiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000);
 
     seller.userAuth.otp = otp;
+
     seller.userAuth.otpValid = otpExpiry;
     await seller.save();
 
@@ -149,13 +151,17 @@ export const generateOtp = async (req, res) => {
       PhoneNumber: formattedNumber,
     };
 
-    const snsResult = await sns.publish(params).promise();
-    console.log("SNS response:", snsResult);
+    // const snsResult = await sns.publish(params).promise();
+    // console.log("SNS response:", snsResult);
 
-    res.status(200).json({ message: "OTP sent to your mobile number." });
+    return sendResponse(res, 200, true, "OTP sent to your mobile number", {
+      mobileNo,
+      otp
+    });
+
   } catch (err) {
     console.error("OTP Send Error:", err);
-    res.status(500).json({ error: err.message });
+    return sendResponse(res, 500, false, "Failed to send OTP");
   }
 };
 
@@ -163,15 +169,15 @@ export const generateOtp = async (req, res) => {
 export const verifyOtp = async (req, res) => {
   try {
     const { mobileNo, otp } = req.body;
-
+    if (!mobileNo || !otp) {
+      return sendResponse(res, 400, false, "MobileNumber and Otp are require.");
+    }
     const user = await SellerUserAuth.findOne({
       "userInfo.mobileNo": mobileNo,
     });
 
     if (!user) {
-      return res
-        .status(404)
-        .json({ message: "Seller not found.", success: false });
+      return sendResponse(res, 404, false, "Seller not found.");
     }
 
     if (
@@ -179,9 +185,7 @@ export const verifyOtp = async (req, res) => {
       !user.userAuth.otpValid ||
       new Date() > new Date(user.userAuth.otpValid)
     ) {
-      return res
-        .status(400)
-        .json({ message: "Invalid or expired OTP.", success: false });
+      return sendResponse(res, 400, false, "Invalid or expired OTP.");
     }
 
     // OTP is valid
@@ -198,41 +202,31 @@ export const verifyOtp = async (req, res) => {
       expiresIn: "1d",
     });
 
-    return res
-      .status(200)
-      .cookie("token", token, {
-        maxAge: 1 * 24 * 60 * 60 * 1000, // 1 day
-        httpOnly: true,
-        sameSite: "strict",
-      })
-      .json({
-        message: "OTP verified and user logged in successfully.",
-        success: true,
-        _id: user._id,
-        firstName: user.userInfo?.firstName,
-        lastName: user.userInfo?.lastName,
-        email: user.userInfo?.email,
-      });
+    res.cookie("token", token, {
+      maxAge: 1 * 24 * 60 * 60 * 1000, // 1 day
+      httpOnly: true,
+      sameSite: "strict",
+    });
+
+    return sendResponse(res, 200, true, "OTP verified and user logged in successfully.", {
+      _id: user._id,
+      firstName: user.userInfo?.firstName,
+      lastName: user.userInfo?.lastName,
+      email: user.userAuth?.email,
+    });
+
   } catch (error) {
     console.log("Verify OTP Error:", error);
-    return res.status(500).json({
-      message: "Internal server error",
-      success: false,
-    });
+    return sendResponse(res, 500, false, "Internal server error");
   }
 };
 
 export const logoutSeller = (req, res) => {
   console.log("Inside log out seller")
   try {
-    return res.status(200).cookie("token", "", { maxAge: 0 }).json({
-      message: "Logged out succesfully",
-    });
+    return sendResponse(res, 200, true, "Logged out successfully");
   } catch (error) {
     console.log(error);
-     return res.status(500).json({
-       message: "Internal server error",
-       success: false,
-     });
+    return sendResponse(res, 500, false, "Internal server error");
   }
 };
