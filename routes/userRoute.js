@@ -1,6 +1,5 @@
 import express from "express";
 import {
-  registerSeller,
   loginseller,
   generateOtp,
   verifyOtp,
@@ -9,7 +8,7 @@ import {
 
 const router = express.Router();
 
-router.route("/signup").post(registerSeller);
+// router.route("/signup").post(registerSeller);
 router.route("/login").post(loginseller);
 router.route("/generateOtp").post(generateOtp);
 router.route("/verifyOtp").post(verifyOtp);

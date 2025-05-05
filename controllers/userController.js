@@ -47,37 +47,36 @@ const OTP_EXPIRY_MINUTES = 5;
 // };
 
 // Register Seller
-export const registerSeller = async (req, res) => {
-  try {
-    const { firstName, lastName, mobileNo, email, password } = req.body;
+// export const registerSeller = async (req, res) => {
+//   try {
+//     const { firstName, lastName, mobileNo, email, password } = req.body;
     
-    if(!firstName || !lastName || !mobileNo || !email || !password ){
-      return res.status(400).json({ message: "All fields are required" });
-    }
-    const existingUser = await SellerUserAuth.findOne({ "userInfo.mobileNo": mobileNo });
-    if (existingUser) {
-      return res.status(400).json({ message: "Mobile number already registered.", success: false });
-    }
+//     if(!firstName || !lastName || !mobileNo || !email || !password ){
+//       return res.status(400).json({ message: "All fields are required" });
+//     }
+//     const existingUser = await SellerUserAuth.findOne({ "userInfo.mobileNo": mobileNo });
+//     if (existingUser) {
+//       return res.status(400).json({ message: "Mobile number already registered.", success: false });
+//     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+//     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const newSeller = new SellerUserAuth({
-      userInfo: { firstName, lastName, mobileNo },
-      userAuth: { email, password: hashedPassword },
-    });
+//     const newSeller = new SellerUserAuth({
+//       userInfo: { firstName, lastName, mobileNo },
+//       userAuth: { email, password: hashedPassword },
+//     });
 
-    await newSeller.save();
-    res.status(201).json({ message: "Seller registered successfully.", success: true });
-  } catch (err) {
-    console.log(err);
+//     await newSeller.save();
+//     res.status(201).json({ message: "Seller registered successfully.", success: true });
+//   } catch (err) {
+//     console.log(err);
     
-    res.status(500).json({ error: err.message });
-  }
-};
+//     res.status(500).json({ error: err.message });
+//   }
+// };
 
 export const loginseller = async (req, res) => {
   try {
-     console.log("Log in user");
      const { email, password } = req.body;
     if(!email || !password){
       return sendResponse(res, 400, false, "Email and Password are required");
@@ -93,7 +92,6 @@ export const loginseller = async (req, res) => {
      if (!isMatch) {
       return sendResponse(res, 400, false, "Invalid credentials");
      }
-    
 
     const tokenData = {
       userId: user._id,
@@ -102,17 +100,19 @@ export const loginseller = async (req, res) => {
     const token = await jwt.sign(tokenData, process.env.JWT_SECRET_KEY, {
       expiresIn: "1d",
     });
-    res.cookie("token", token, {
+    res.cookie("user-token", token, {
       maxAge: 24 * 60 * 60 * 1000,
       httpOnly: true,
       sameSite: "strict",
     });
 
     return sendResponse(res, 200, true, "Login successful", {
+      token,
       _id: user._id,
       firstName: user.userInfo.firstName,
       lastName: user.userInfo.lastName,
       email: user.userAuth.email,
+      mobileNo : user.userInfo.mobileNo
     });
   } catch (error) {
     console.log(`Log in seller error: ${error}`);
@@ -222,11 +222,17 @@ export const verifyOtp = async (req, res) => {
 };
 
 export const logoutSeller = (req, res) => {
-  console.log("Inside log out seller")
+  console.log("Inside log out seller");
   try {
+    res.clearCookie("user-token", {
+      httpOnly: true,
+      sameSite: "strict",
+      secure: process.env.NODE_ENV === "production", // optional for HTTPS
+    });
+
     return sendResponse(res, 200, true, "Logged out successfully");
   } catch (error) {
-    console.log(error);
+    console.log("Logout error:", error);
     return sendResponse(res, 500, false, "Internal server error");
   }
 };
