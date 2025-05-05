@@ -9,9 +9,7 @@ const OTP_EXPIRY_MINUTES = 5;
 export const signup = async (req, res) => {
   try {
     console.log("sign up customer");
-    const { firstName, lastName, email, mobileNo, password, address } =
-      req.body;
-    console.log(firstName, lastName, email, mobileNo, password, address);
+    const { firstName, lastName, email, mobileNo, password, address } = req.body;
 
     // Basic validation
     if (
@@ -22,25 +20,19 @@ export const signup = async (req, res) => {
       !password ||
       !address
     ) {
-      return res.status(400).json({ message: "All fields are required" });
+      return sendResponse(res, 400, false, "All fields are required");
     }
 
     // Check if customer already exists by email
     const existingEmail = await Customer.findOne({ email });
     if (existingEmail) {
-      return res.status(400).json({
-        message: "Customer already exists with this email.",
-        success: false,
-      });
+      return sendResponse(res, 400, false, "Customer already exists with this email.");
     }
 
     // Check if customer already exists by mobile number
     const existingMobile = await Customer.findOne({ mobileNo });
     if (existingMobile) {
-      return res.status(400).json({
-        message: "Customer already exists with this phone number.",
-        success: false,
-      });
+      return sendResponse(res, 400, false, "Customer already exists with this phone number.");
     }
 
     // Hash password
