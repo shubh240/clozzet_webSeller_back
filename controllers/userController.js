@@ -100,7 +100,7 @@ export const loginseller = async (req, res) => {
     const token = await jwt.sign(tokenData, process.env.JWT_SECRET_KEY, {
       expiresIn: "1d",
     });
-    res.cookie("user-token", token, {
+    res.cookie("token", token, {
       maxAge: 24 * 60 * 60 * 1000,
       httpOnly: true,
       sameSite: "strict",
@@ -219,7 +219,7 @@ export const verifyOtp = async (req, res) => {
     console.log("Verify OTP Error:", error);
     return sendResponse(res, 500, false, "Internal server error");
   }
-};
+};  
 
 export const logoutSeller = (req, res) => {
   console.log("Inside log out seller");
