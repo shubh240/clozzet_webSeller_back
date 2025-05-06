@@ -1,25 +1,29 @@
 import mongoose from "mongoose";
 
-const categoryModel = new mongoose.Schema(
+const CategorySchema = new mongoose.Schema(
   {
-    categoryId: {
+    name: {
       type: String,
       required: true,
     },
-    categoryName: {
+    image: {
       type: String,
+      default: "",
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "AdminAuth",
       required: true,
     },
-    categoryStatus: {
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "AdminAuth",
+    },
+    isDeleted: {
       type: Boolean,
       default: false,
     },
-    featured: {
-      type: Boolean,
-      default: false,
-    },
-
-    adminId: {
+    deletedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "AdminAuth",
     },
@@ -27,4 +31,4 @@ const categoryModel = new mongoose.Schema(
   { timestamps: true }
 );
 
-export const Category = mongoose.model("Category", categoryModel);
+export const Category = mongoose.model("Category", CategorySchema);

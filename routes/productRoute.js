@@ -28,7 +28,7 @@ router.post(
   "/add",
     isUserAuthenticated,
     addItem
-); // Add new item with image & video
+); 
 
 router.get("/all",  isUserAuthenticated,
  getAllItems); // Get all items
