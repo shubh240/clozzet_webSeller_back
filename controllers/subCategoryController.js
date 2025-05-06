@@ -1,100 +1,149 @@
+import mongoose from "mongoose";
+import { SellerSubCategory } from "../models/sellerSubCategory.model.js";
 import { sendResponse } from "../common/index.js";
-import { Subcategory } from "../models/subCategories.model.js";
 
-
-export const getAllSubCategories = async (req, res) => {
+export const createSellerSubCategory = async (req, res) => {
   try {
-    const { search = "", page, limit, categoryId = "" } = req.query;
+    const { sellerId, categoryId, sellerCategoryId, subCategoryId } = req.body;
+    const createdBy = req.id;
 
-    const matchStage = { isDeleted: false };
-
-    if (search) {
-      matchStage.name = { $regex: search, $options: "i" };
+    if (!sellerId || !categoryId || !sellerCategoryId || !subCategoryId) {
+      return sendResponse(res, 400, false, "All fields are required.");
     }
 
-    if (categoryId) {
-      matchStage.category = categoryId;
-    }
-
-    const aggregationPipeline = [
-      { $match: matchStage },
-
-      // JOIN category
-      {
-        $lookup: {
-          from: "categories",
-          localField: "category",
-          foreignField: "_id",
-          as: "category",
-        },
-      },
-      { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
-
-      // JOIN createdBy
-      {
-        $lookup: {
-          from: "adminauths",
-          localField: "createdBy",
-          foreignField: "_id",
-          as: "createdBy",
-        },
-      },
-      { $unwind: { path: "$createdBy", preserveNullAndEmptyArrays: true } },
-
-      // JOIN updatedBy
-      {
-        $lookup: {
-          from: "adminauths",
-          localField: "updatedBy",
-          foreignField: "_id",
-          as: "updatedBy",
-        },
-      },
-      { $unwind: { path: "$updatedBy", preserveNullAndEmptyArrays: true } },
-
-      // JOIN deletedBy
-      {
-        $lookup: {
-          from: "adminauths",
-          localField: "deletedBy",
-          foreignField: "_id",
-          as: "deletedBy",
-        },
-      },
-      { $unwind: { path: "$deletedBy", preserveNullAndEmptyArrays: true } },
-
-      // Sort by newest first
-      { $sort: { createdAt: -1 } },
-    ];
-
-    // Count total before pagination
-    const totalSubcategories = await Subcategory.aggregate([
-      { $match: matchStage },
-      { $count: "total" },
-    ]);
-    const total = totalSubcategories[0]?.total || 0;
-
-    // Pagination
-    if (page && limit) {
-      const skip = (parseInt(page) - 1) * parseInt(limit);
-      aggregationPipeline.push({ $skip: skip }, { $limit: parseInt(limit) });
-    }
-
-    const subcategories = await Subcategory.aggregate(aggregationPipeline);
-
-    return sendResponse(res, 200, true, "Subcategories fetched successfully", {
-      subcategories,
-      total,
-      ...(page && limit && {
-        currentPage: parseInt(page),
-        totalPages: Math.ceil(total / parseInt(limit)),
-      }),
+    const exists = await SellerSubCategory.findOne({
+      sellerId,
+      categoryId,
+      sellerCategoryId,
+      subCategoryId,
+      isDeleted: false,
     });
+
+    if (exists) {
+      return sendResponse(res, 400, false, "Seller SubCategory already exists.");
+    }
+
+    const newEntry = new SellerSubCategory({
+      sellerId,
+      categoryId,
+      sellerCategoryId,
+      subCategoryId,
+      createdBy,
+    });
+
+    const saved = await newEntry.save();
+    return sendResponse(res, 201, true, "Seller SubCategory created", saved);
   } catch (error) {
-    console.error("List subcategories error:", error);
-    return sendResponse(res, 500, false, "Internal server error", {
-      error: error.message,
-    });
+    console.error("Create SellerSubCategory error:", error);
+    return sendResponse(res, 500, false, "Internal server error", { error: error.message });
   }
 };
 
+export const getSellerSubCategories = async (req, res) => {
+  try {
+    const match = { isDeleted: false };
+    const { sellerId, sellerCategoryId } = req.query;
+
+    if (sellerId) match.sellerId = new mongoose.Types.ObjectId(sellerId);
+    if (sellerCategoryId) match.sellerCategoryId = new mongoose.Types.ObjectId(sellerCategoryId);
+
+    const result = await SellerSubCategory.aggregate([
+      { $match: match },
+      {
+        $lookup: {
+          from: "sellercategories",
+          localField: "sellerCategoryId",
+          foreignField: "_id",
+          as: "sellerCategory",
+        },
+      },
+      { $unwind: { path: "$sellerCategory", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "subcategories",
+          localField: "subCategoryId",
+          foreignField: "_id",
+          as: "subCategory",
+        },
+      },
+      { $unwind: { path: "$subCategory", preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          _id: 1,
+          sellerId: 1,
+          sellerCategoryId: 1,
+          "sellerCategory.categoryId": 1,
+          "subCategory.name": 1,
+          createdAt: 1,
+        },
+      },
+      { $sort: { createdAt: -1 } },
+    ]);
+
+    return sendResponse(res, 200, true, "Seller SubCategories fetched", result);
+  } catch (error) {
+    console.error("Get SellerSubCategories error:", error);
+    return sendResponse(res, 500, false, "Internal server error", { error: error.message });
+  }
+};
+
+export const updateSellerSubCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { sellerCategoryId, subCategoryId } = req.body;
+    const updatedBy = req.id; 
+
+    const existingSubCategory = await SellerSubCategory.findOne({
+      _id: id,
+      isDeleted: false,
+    });
+
+    if (!existingSubCategory) {
+      return sendResponse(res, 404, false, "SellerSubCategory not found.");
+    }
+
+    const duplicate = await SellerSubCategory.findOne({
+      _id: { $ne: id },
+      sellerCategoryId,
+      subCategoryId,
+      isDeleted: false,
+    });
+
+    if (duplicate) {
+      return sendResponse(res, 400, false, "This subcategory already exists under the specified seller category.");
+    }
+
+    existingSubCategory.sellerCategoryId = sellerCategoryId;
+    existingSubCategory.subCategoryId = subCategoryId;
+    existingSubCategory.updatedBy = updatedBy;
+
+    const updatedSubCategory = await existingSubCategory.save();
+
+    return sendResponse(res, 200, true, "SellerSubCategory updated successfully.", updatedSubCategory);
+  } catch (error) {
+    console.error("Update SellerSubCategory error:", error);
+    return sendResponse(res, 500, false, "Internal server error.", { error: error.message });
+  }
+};
+
+export const deleteSellerSubCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deletedBy = req.id;
+
+    const result = await SellerSubCategory.findByIdAndUpdate(
+      id,
+      { isDeleted: true, deletedBy },
+      { new: true }
+    );
+
+    if (!result) {
+      return sendResponse(res, 404, false, "Seller SubCategory not found");
+    }
+
+    return sendResponse(res, 200, true, "Seller SubCategory deleted", result);
+  } catch (error) {
+    console.error("Delete SellerSubCategory error:", error);
+    return sendResponse(res, 500, false, "Internal server error", { error: error.message });
+  }
+};
