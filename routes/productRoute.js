@@ -1,50 +1,40 @@
 import express from "express";
 import upload from "../middleware/multer.middleware.js";
 import {
-  uploadProductMedia,
-  addItem,
-  getAllItems,
-  editItem,
-  toggleVisibility,
-  deleteItem,
-} from "../controllers/productController.js";
+  createProduct,
+  getProducts,
+  getProductById,
+  updateProduct,
+  deleteProduct
+} from '../controllers/productController.js';
 import isUserAuthenticated from "../middleware/isUserAuthenticated.js";
 
 const router = express.Router();
 
-// Upload Image and Video Middleware
 router.post(
-  "/upload-media",
+  '/add-product',
   isUserAuthenticated,
-
   upload.fields([
-    { name: "images", maxCount: 6 },
-    { name: "video", maxCount: 1 },
+    { name: "primaryImage", maxCount: 1 },
+    { name: "images", maxCount: 5 }
   ]),
-  uploadProductMedia
-); 
+  createProduct
+);
 
-router.post(
-  "/add",
-    isUserAuthenticated,
-    addItem
-); 
+router.get('/list-product', isUserAuthenticated, getProducts); 
 
-router.get("/all",  isUserAuthenticated,
- getAllItems); // Get all items
+router.get('/list-productById/:productId', isUserAuthenticated, getProductById); 
 
 router.put(
-  "/edit/:id",
+  '/update-product/:productId',
+  isUserAuthenticated, 
   upload.fields([
-    { name: "images", maxCount: 6 },
-    { name: "video", maxCount: 1 },
+    { name: "primaryImage", maxCount: 1 },
+    { name: "images", maxCount: 5 }
   ]),
-  editItem
-); // Edit item by ID with image & video
+  updateProduct
+);
 
-router.patch("/toggle-visibility/:id", isUserAuthenticated, toggleVisibility);
-
-
-router.delete("/delete/:id", isUserAuthenticated, deleteItem); // Delete item by ID
+router.delete('/delete-product/:productId', isUserAuthenticated, deleteProduct);
 
 export default router;

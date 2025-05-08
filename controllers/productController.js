@@ -1,328 +1,395 @@
+import { sendResponse } from "../common/index.js";
 import { Product } from "../models/product.model.js";
+import { ProductImage } from "../models/productImage.model.js";
 import cloudinary from "../config/cloudinary.js";
 import fs from "fs";
+import mongoose from "mongoose"
 
-// Add Item API with Image and Video Upload
-
-// Controller: uploadProductMedia.js
-export const uploadProductMedia = async (req, res) => {
-  try {
-    let imageUrls = [];
-    let videoUrl = "";
-
-    // ✅ Parse old media for deletion (if editing)
-    const oldImageUrls = req.body.oldImageUrls
-      ? JSON.parse(req.body.oldImageUrls)
-      : [];
-    const oldVideoUrl = req.body.oldVideoUrl || "";
-
-    // 🧹 Delete old images if new ones are uploaded
-    if (req.files["images"] && oldImageUrls.length > 0) {
-      for (const imageUrl of oldImageUrls) {
-        const publicId = imageUrl.split("/").pop().split(".")[0];
-        await cloudinary.uploader.destroy(
-          `uploads/products/images/${publicId}`
-        );
-      }
-    }
-
-    // 🧹 Delete old video if a new one is uploaded
-    if (req.files["video"] && oldVideoUrl) {
-      const oldVideoPublicId = oldVideoUrl.split("/").pop().split(".")[0];
-      await cloudinary.uploader.destroy(
-        `uploads/products/videos/${oldVideoPublicId}`,
-        {
-          resource_type: "video",
-        }
-      );
-    }
-
-    // 📤 Upload new images
-    if (req.files["images"]) {
-      for (let file of req.files["images"]) {
-        const result = await cloudinary.uploader.upload(file.path, {
-          folder: "uploads/products/images",
-          resource_type: "image",
-        });
-        imageUrls.push(result.secure_url);
-        fs.unlinkSync(file.path);
-      }
-    }
-
-    // 📤 Upload new video
-    if (req.files["video"]) {
-      const videoPath = req.files["video"][0].path;
-      const result = await cloudinary.uploader.upload(videoPath, {
-        folder: "uploads/products/videos",
-        resource_type: "video",
-      });
-      videoUrl = result.secure_url;
-      fs.unlinkSync(videoPath);
-    }
-
-    return res.status(200).json({
-      success: true,
-      imageUrls,
-      videoUrl,
-    });
-  } catch (error) {
-    console.error("Upload media error:", error);
-    return res.status(500).json({ success: false, message: "Upload failed." });
-  }
-};
-
-
-
-export const addItem = async (req, res) => {
+export const createProduct = async (req, res) => {
   try {
     const {
       name,
+      sku,
+      description,
       category,
       subcategory,
-      shortDesc,
-      detailedDesc,
-      tags,
-      brand,
-      sku,
       sellingPrice,
       originalPrice,
-      discountType,
-      discountValue,
-      taxIncluded,
-      taxValue,
-      stock,
-      stockStatus,
-      returnPolicy,
-      visibility,
-      seoKeywords,
-      buyerNotes,
-      status,
+      quantity,
+      sizeChartId,
+      brandName
+    } = req.body;
+    
+    const sellerId = req.id;
+
+    // 🔍 Validate required fields
+    if (
+      !name ||
+      !sku ||
+      !description ||
+      !category ||
+      !subcategory ||
+      !sellingPrice ||
+      !quantity ||
+      !brandName
+    ) {
+      return sendResponse(res, 400, false, 'All fields are required');
+    }
+
+    // Check for existing SKU
+    const existingProduct = await Product.findOne({ sku });
+    if (existingProduct) {
+      return sendResponse(res, 400, false, 'Product with this SKU already exists');
+    }
+
+    let primaryImageUrl = "";
+    let productImages = [];
+
+    // ✅ Primary image required check
+    if (!req.files || !req.files['primaryImage']) {
+      return sendResponse(res, 400, false, 'Primary image is required');
+    }
+
+    // Upload primary image
+    const imagePath = req.files['primaryImage'][0].path;
+    const imageResult = await cloudinary.uploader.upload(imagePath, {
+      folder: "uploads/products/images",
+      resource_type: "image",
+    });
+    primaryImageUrl = imageResult.secure_url;
+    fs.unlinkSync(imagePath);
+
+    // Upload additional images
+    if (req.files['images']) {
+      for (let file of req.files['images']) {
+        const imagePath = file.path;
+        const imageResult = await cloudinary.uploader.upload(imagePath, {
+          folder: "uploads/products/images",
+          resource_type: "image",
+        });
+        productImages.push({
+          imageUrl: imageResult.secure_url,
+        });
+        fs.unlinkSync(imagePath);
+      }
+    }
+
+    // Create product
+    const newProduct = await Product.create({
+      name: name.trim(),
+      sku: sku.trim(),
+      brandName: brandName.trim(),
+      description: description.trim(),
+      category,
+      subcategory,
+      sellingPrice,
+      originalPrice: originalPrice || 0,
+      quantity,
+      sizeChartId,
+      seller: sellerId,
+      primaryImage: primaryImageUrl,
+      createdBy: sellerId,
+    });
+
+    // Save images
+    if (productImages.length > 0) {
+      for (const image of productImages) {
+        await ProductImage.create({
+          product: newProduct._id,
+          imageUrl: image.imageUrl,
+          createdBy: sellerId,
+        });
+      }
+    }
+
+    return sendResponse(res, 201, true, 'Product created successfully', newProduct);
+  } catch (error) {
+    console.error('Create Product Error:', error);
+    return sendResponse(res, 500, false, 'Error creating product');
+  }
+};
+
+export const getProducts = async (req, res) => {
+  try {
+    const {
+      search = "",
+      category,
+      brandName,
+      page,
+      limit,
+    } = req.query;
+
+    const matchStage = { isDeleted: false };
+
+    if (search) {
+      matchStage.name = { $regex: search, $options: "i" };
+    }
+
+    if (category) {
+      matchStage.category = new mongoose.Types.ObjectId(category);
+    }
+
+    if (brandName) {
+      matchStage.brandName = brandName;
+    }
+
+    // If page and limit are provided, apply pagination
+    const skip = page && limit ? (parseInt(page) - 1) * parseInt(limit) : 0;
+    const limitNumber = page && limit ? parseInt(limit) : 0;
+
+    const pipeline = [
+      { $match: matchStage },
+      {
+        $lookup: {
+          from: "categories",
+          localField: "category",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+      { $unwind: "$category" },
+      {
+        $lookup: {
+          from: "subcategories",
+          localField: "subcategory",
+          foreignField: "_id",
+          as: "subcategory",
+        },
+      },
+      { $unwind: "$subcategory" },
+      {
+        $lookup: {
+          from: "productimages",
+          let: { productId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$product", "$$productId"] },
+                    { $eq: ["$isDeleted", false] },
+                  ],
+                },
+              },
+            },
+            { $project: { imageUrl: 1 } },
+          ],
+          as: "images",
+        },
+      },
+      { $sort: { createdAt: -1 } },
+    ];
+
+    // Only apply skip and limit if pagination params are provided
+    if (page && limit) {
+      pipeline.push({ $skip: skip });
+      pipeline.push({ $limit: limitNumber });
+    }
+
+    const [products, total] = await Promise.all([
+      Product.aggregate(pipeline),
+      Product.countDocuments(matchStage),
+    ]);
+
+    return sendResponse(res, 200, true, "Products fetched successfully", {
+      total,
+      page: page ? parseInt(page) : 1,
+      limit: limit ? parseInt(limit) : total,
+      products,
+    });
+  } catch (error) {
+    console.error("Get Products Error:", error);
+    return sendResponse(res, 500, false, "Error fetching products");
+  }
+};
+
+export const getProductById = async (req, res) => {
+  try {
+    const { productId } = req.params;
+
+    // Check if productId is a valid ObjectId
+    if (!mongoose.isValidObjectId(productId)) {
+      return sendResponse(res, 400, false, "Invalid Product ID");
+    }
+
+    const product = await Product.aggregate([
+      // Match the product by ID and ensure it's not deleted
+      { $match: { _id: new mongoose.Types.ObjectId(productId), isDeleted: false } },
+
+      // Lookup for category
+      {
+        $lookup: {
+          from: "categories",
+          localField: "category",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+      { $unwind: "$category" },
+
+      // Lookup for subcategory
+      {
+        $lookup: {
+          from: "subcategories",
+          localField: "subcategory",
+          foreignField: "_id",
+          as: "subcategory",
+        },
+      },
+      { $unwind: "$subcategory" },
+
+      // Lookup for images
+      {
+        $lookup: {
+          from: "productimages",
+          let: { productId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$product", "$$productId"] },
+                    { $eq: ["$isDeleted", false] },
+                  ],
+                },
+              },
+            },
+            { $project: { imageUrl: 1 } },
+          ],
+          as: "images",
+        },
+      },
+    ]);
+
+    // If no product is found
+    if (product.length === 0) {
+      return sendResponse(res, 404, false, "Product not found");
+    }
+
+    return sendResponse(res, 200, true, "Product fetched successfully", product[0]);
+  } catch (error) {
+    console.error("Get Product By ID Error:", error);
+    return sendResponse(res, 500, false, "Error fetching product");
+  }
+};
+
+export const updateProduct = async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const {
+      name,
+      sku,
+      description,
+      category,
+      subcategory,
+      sellingPrice,
+      originalPrice,
+      quantity,
+      sizeChartId,
+      brandName,
     } = req.body;
 
-    const userId = req.id;
+    const sellerId = req.id; 
 
-    // Check if product name already exists
-    const existing = await Product.findOne({ name });
-    if (existing) {
-      return res.status(400).json({
-        success: false,
-        message: "Item with this name already exists.",
-      });
+    if (!mongoose.isValidObjectId(productId)) {
+      return sendResponse(res, 400, false, "Invalid Product ID");
     }
 
-   const imageUrls = Array.isArray(req.body.imageUrls)
-     ? req.body.imageUrls
-     : [req.body.imageUrls];
+    let product = await Product.findById(productId);
+    if (!product || product.isDeleted) {
+      return sendResponse(res, 404, false, "Product not found or is deleted");
+    }
 
-   const videoUrl = req.body.videoUrl || "";
-
-    const newItem = await Product.create({
+    const updatedFields = {
       name,
+      sku,
+      description,
       category,
       subcategory,
-      shortDesc,
-      detailedDesc,
-      tags: tags
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter(Boolean),
-      brand,
-      sku,
       sellingPrice,
       originalPrice,
-      discountType,
-      discountValue,
-      taxIncluded: taxIncluded === "true" || taxIncluded === true,
-      taxValue,
-      stock: stock ? JSON.parse(stock) : {},
-      stockStatus,
-      imageUrls, // ✅ Array of image URLs
-      videoUrl,
-      returnPolicy,
-      visibility: visibility ? JSON.parse(visibility) : {},
-      seoKeywords,
-      buyerNotes,
-      status,
-      userId,
-    });
+      quantity,
+      sizeChartId,
+      brandName,
+      updatedBy: sellerId,
+    };
 
-    return res.status(201).json({
-      success: true,
-      message: "Item added successfully.",
-      newItem,
-    });
-  } catch (error) {
-    console.error("Add item error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Error adding item.",
-    });
-  }
-};
-
-
-
-// Get All Items API
-export const getAllItems = async (req, res) => {
-  try {
-    const userId = req.id;
-    const allItems = await Product.find({ userId: userId });
-    return res.status(200).json({
-      success: true,
-      items: allItems,
-    });
-  } catch (error) {
-    console.error(`Get all Items error: ${error}`);
-    res.status(500).json({
-      message: "Error fetching items.",
-      success: false,
-      error
-    });
-  }
-};
-
-// Edit Item API with Image and Video Upload
-
-export const editItem = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const updateData = req.body;
-
-    let updatedItem = await Product.findById(id);
-    if (!updatedItem) {
-      return res.status(404).json({
-        message: "Item not found.",
-        success: false,
+    if (req.files && req.files["primaryImage"]) {
+      const imagePath = req.files["primaryImage"][0].path;
+      const imageResult = await cloudinary.uploader.upload(imagePath, {
+        folder: "uploads/products/images",
+        resource_type: "image",
       });
+      updatedFields.primaryImage = imageResult.secure_url;
+      fs.unlinkSync(imagePath); 
     }
 
-    // ✅ Parse stock, visibility, tags
-    if (typeof updateData.stock === "string") {
-      try {
-        updateData.stock = JSON.parse(updateData.stock);
-      } catch {
-        return res
-          .status(400)
-          .json({ message: "Invalid stock format.", success: false });
+    let productImages = [];
+    if (req.files && req.files["images"]) {
+      for (let file of req.files["images"]) {
+        const imagePath = file.path;
+        const imageResult = await cloudinary.uploader.upload(imagePath, {
+          folder: "uploads/products/images",
+          resource_type: "image",
+        });
+        productImages.push({ imageUrl: imageResult.secure_url });
+        fs.unlinkSync(imagePath); 
       }
     }
 
-    if (typeof updateData.visibility === "string") {
-      try {
-        updateData.visibility = JSON.parse(updateData.visibility);
-      } catch {
-        return res
-          .status(400)
-          .json({ message: "Invalid visibility format.", success: false });
+    product = await Product.findByIdAndUpdate(productId, updatedFields, { new: true });
+
+    await ProductImage.deleteMany({ product: productId });
+
+    if (productImages.length > 0) {
+      for (const image of productImages) {
+        await ProductImage.create({
+          product: productId,
+          imageUrl: image.imageUrl,
+          createdBy: sellerId,
+        });
       }
     }
 
-    if (typeof updateData.tags === "string") {
-      updateData.tags = updateData.tags
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter(Boolean);
-    }
+    const updatedProduct = await Product.findById(productId).lean();
+    const images = await ProductImage.find({ product: productId, isDeleted: false }).lean();
 
-    // 🔁 Final update
-    updatedItem = await Product.findByIdAndUpdate(id, updateData, {
-      new: true,
-      runValidators: true,
-    });
-
-    return res.status(200).json({
-      message: "Item updated successfully.",
-      success: true,
-      updatedItem,
+    return sendResponse(res, 200, true, "Product updated successfully", {
+      ...updatedProduct,
+      images,
     });
   } catch (error) {
-    console.error(`Edit Item error: ${error}`);
-    res.status(500).json({
-      message: "Error updating item.",
-      success: false,
-    });
+    console.error("Update Product Error:", error);
+    return sendResponse(res, 500, false, "Error updating product");
   }
 };
 
-export const toggleVisibility = async (req, res) => {
-  const { id } = req.params;
-  const { field, value } = req.body;
-
-  if (!["newArrival", "trending", "hidden"].includes(field)) {
-    return res.status(400).json({ message: "Invalid field" });
-  }
-
+export const deleteProduct = async (req, res) => {
   try {
-    const product = await Product.findById(id);
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
+    const { productId } = req.params;
+    const sellerId = req.id; 
+
+    if (!mongoose.isValidObjectId(productId)) {
+      return sendResponse(res, 400, false, "Invalid Product ID");
     }
 
-    product.visibility[field] = value;
+    const product = await Product.findById(productId);
+    if (!product || product.isDeleted) {
+      return sendResponse(res, 404, false, "Product not found or already deleted");
+    }
+
+    product.isDeleted = true;
+    product.deletedBy = sellerId;
     await product.save();
 
-    res.status(200).json({ message: "Visibility updated", product });
+    await ProductImage.updateMany(
+      { product: productId },
+      { $set: { isDeleted: true, deletedBy: sellerId } }
+    );
+
+    return sendResponse(res, 200, true, "Product deleted successfully");
   } catch (error) {
-    console.log("Error in toggleVisibility:", error)
-    res.status(500).json({ message: "Server error", error });
-  }
-};
-
-
-
-// Delete Item API with Image and Video Deletion
-export const deleteItem = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    // Find item by ID to get image and video URLs
-    const deletedItem = await Product.findByIdAndDelete(id);
-
-    if (!deletedItem) {
-      return res.status(404).json({
-        message: "Item not found.",
-        success: false,
-      });
-    }
-
-    // Delete image from Cloudinary if exists
-   if (Array.isArray(deletedItem.imageUrl)) {
-     for (const url of deletedItem.imageUrl) {
-       if (typeof url === "string") {
-         const publicId = url.split("/").pop().split(".")[0];
-
-         await cloudinary.uploader.destroy(
-           `uploads/products/images/${publicId}`
-         );
-       }
-     }
-   }
-
-
-    // Delete video from Cloudinary if exists
-    if (deletedItem.videoUrl) {
-      const oldVideoPublicId = deletedItem.videoUrl
-        .split("/")
-        .pop()
-        .split(".")[0];
-      await cloudinary.uploader.destroy(
-        `uploads/products/videos/${oldVideoPublicId}`,
-        {
-          resource_type: "video",
-        }
-      );
-    }
-
-    return res.status(200).json({
-      message: "Item deleted successfully.",
-      success: true,
-      deletedItem,
-    });
-  } catch (error) {
-    console.error(`Delete Item error: ${error}`);
-    res.status(500).json({
-      message: "Error deleting item.",
-      success: false,
-    });
+    console.error("Delete Product Error:", error);
+    return sendResponse(res, 500, false, "Error deleting product");
   }
 };
