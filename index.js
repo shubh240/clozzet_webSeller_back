@@ -14,6 +14,9 @@ import customerRoute from "./routes/customerRoute.js";
 import categoryRoute from "./routes/categoryRoute.js";
 import sellerDashboardRoute from "./routes/sellerDashboardRoute.js";
 import subCategoryRoute from "./routes/subCategoryRoutes.js";
+import sizeChartRoute from "./routes/sizeChartRoute.js"
+import productSizeRoute from "./routes/productSizeRoute.js"
+
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -43,6 +46,8 @@ app.use("/uploads", express.static("uploads"));
 app.use("/api/v1/auth", verifyRoute);
 app.use("/api/v1/user", userRoute);
 app.use("/api/v1/products", productRoutes);
+app.use("/api/v1/sizeChart", sizeChartRoute);
+app.use("/api/v1/productSize", productSizeRoute);
 app.use("/api/v1/order", orderRoute);
 app.use("/api/v1/store", storeRoute);
 app.use("/api/v1/employee", employeeRoute);
