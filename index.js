@@ -38,6 +38,20 @@ app.use(cookieParser());
 // };
 // app.use(cors(corsOption));
 
+const corsOption = {
+  origin: (origin, callback) => {
+    // if (allowedOrigins.includes(origin) || !origin) {
+    //   callback(null, true);
+    // } else {
+    //   callback(new Error("Not allowed by CORS"));
+    // }
+    callback(null, true);
+  },
+  credentials: true,
+};
+
+app.use(cors(corsOption));
+
 // Serve static files from 'uploads' folder
 app.use("/uploads", express.static("uploads"));
 
@@ -62,11 +76,11 @@ const __dirname = path.dirname(__filename);
 const clientBuildPath = path.join(__dirname, "../clozetweb/build");
 app.use(express.static(clientBuildPath));
 
-const corsOption = {
-  origin: "*",
-  credentials: true,
-};
-app.use(cors(corsOption));
+// const corsOption = {
+//   origin: "*",
+//   credentials: true,
+// };
+// app.use(cors(corsOption));
 
 app.get("*", (req, res) => {
   res.sendFile(path.join(clientBuildPath, "index.html"));
