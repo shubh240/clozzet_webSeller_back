@@ -8,12 +8,12 @@ const router = express.Router();
 router.post("/create-productSize",isUserAuthenticated, createProductSize);
 
 // Get all sizes for a product
-router.get("/list-prodctSize",isUserAuthenticated, getProductSizes);
+router.get("/list-productSize",isUserAuthenticated, getProductSizes);
 
 // Update a product size
-router.put("/update-prodctSize/:id",isUserAuthenticated, updateProductSize);
+router.put("/update-productSize/:id",isUserAuthenticated, updateProductSize);
 
 // Soft delete a product size
-router.delete("/delete-prodctSize/:id",isUserAuthenticated, deleteProductSize);
+router.delete("/delete-productSize/:id",isUserAuthenticated, deleteProductSize);
 
 export default router;
