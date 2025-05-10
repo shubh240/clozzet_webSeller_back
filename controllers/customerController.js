@@ -1,249 +1,319 @@
 import { Customer } from "../models/customer.model.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import { Otp } from "../models/otp.model.js";
 import crypto from "crypto";
 import AWS from "aws-sdk";
 import { sns } from "../config/awsConfig.js";
+import { sendResponse } from "../common/index.js";
+import cloudinary from "../config/cloudinary.js";
+import fs from "fs";
+import { CustomerAddress } from "../models/customerAddres.model.js";
 
 const OTP_EXPIRY_MINUTES = 5;
 export const signup = async (req, res) => {
   try {
-    console.log("sign up customer");
-    const { firstName, lastName, email, mobileNo, password, address } = req.body;
+    const { fullName, email, countryCode, mobileNo ,altMobileNo } = req.body;
 
-    // Basic validation
     if (
-      !firstName ||
-      !lastName ||
+      !fullName ||
       !email ||
       !mobileNo ||
-      !password ||
-      !address
+      !countryCode
     ) {
       return sendResponse(res, 400, false, "All fields are required");
     }
 
-    // Check if customer already exists by email
     const existingEmail = await Customer.findOne({ email });
     if (existingEmail) {
       return sendResponse(res, 400, false, "Customer already exists with this email.");
     }
 
-    // Check if customer already exists by mobile number
     const existingMobile = await Customer.findOne({ mobileNo });
     if (existingMobile) {
       return sendResponse(res, 400, false, "Customer already exists with this phone number.");
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const existingAltMobile = await Customer.findOne({ altMobileNo });
+    if (existingAltMobile) {
+      return sendResponse(res, 400, false, "Customer already exists with this alternative phone number.");
+    }
 
     // Create new customer
     await Customer.create({
-      firstName,
-      lastName,
+      fullName,
       email,
+      countryCode,
       mobileNo,
-      password: hashedPassword,
-      address,
+      altMobileNo,
     });
 
-    return res.status(201).json({
-      message: "Account created successfully.",
-      success: true,
-    });
+    return sendResponse(res, 201, true, "Account created successfully.");
+
   } catch (error) {
     console.log(`Sign up customer error: ${error}`);
-    return res.status(500).json({
-      message: "Internal server error",
-      success: false,
-    });
-  }
-};
-
-export const login = async (req, res) => {
-  try {
-    console.log("Log in customer");
-    const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ message: "All fields are required" });
-    }
-   const customer = await Customer.findOne({ email }).select("+password");
-   if (!customer) {
-     return res.status(400).json({
-       message: "Incorrect email",
-       success: false,
-     });
-   }
-   if (customer.status === false) {
-     return res.status(400).json({
-       message: "User is not verified.",
-       success: false,
-     });
-   }
-
-   const isPasswordCorrect = await bcrypt.compare(password, customer.password);
-   if (!isPasswordCorrect) {
-     return res.status(400).json({
-       message: "Incorrect password",
-       success: false,
-     });
-   }
-
-    const tokenData = {
-      userId: customer._id,
-    };
-
-    const token = await jwt.sign(tokenData, process.env.JWT_SECRET_KEY, {
-      expiresIn: "1d",
-    });
-    return res
-      .status(200)
-      .cookie("token", token, {
-        maxAge: 1 * 24 * 60 * 60 * 1000,
-        httpOnly: true,
-        sameSite: "strict",
-      })
-      .json({
-        message: "Login successful",
-        success: true,
-        user: {
-          _id: customer._id,
-          firstName: customer.firstName,
-          lastName: customer.lastName,
-          email: customer.email,
-          mobileNo: customer.mobileNo,
-          status: customer.status,
-        },
-      });
-  } catch (error) {
-    console.log(`Log in customer error: ${error}`);
-     return res.status(500).json({
-       message: "Internal server error",
-       success: false,
-     });
+    return sendResponse(res, 500, false, "Internal server error");
   }
 };
 
 export const generateOtp = async (req, res) => {
   try {
-    const { mobileNo } = req.body;
-
-    const customer = await Customer.findOne({
-      mobileNo
-    });
+    const {countryCode, mobileNo } = req.body;
+    if(!mobileNo || !countryCode){
+      return sendResponse(res, 400, false, "Mobile Number and countryCode are required");
+    }
+    const customer = await Customer.findOne({ mobileNo,countryCode });
 
     if (!customer) {
-      return res
-        .status(404)
-        .json({ message: "Customer not found.", success: false });
+      return res.status(404).json({ message: "Customer not found.", success: false });
     }
 
-    const otp = 1234
     // const otp = crypto.randomInt(100000, 999999).toString();
-    const otpExpiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000);
+    const otp = 1234;
+    const expiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000);
 
-    customer.otp = otp;
-    customer.otpValid = otpExpiry;
-    await customer.save();
+    // Save or update OTP in Otp collection
+    await Otp.findOneAndUpdate(
+      { mobileNo },
+      {
+        otp,
+        otp_type: "signup",
+        expiryDate: expiry,
+      },
+      { upsert: true, new: true }
+    );
 
-    // Format number in E.164 format: +91xxxxxxxxxx
+    // Format number in E.164 format
     const formattedNumber = `+91${mobileNo}`;
 
-    const params = {
-      Message: `Your OTP is: ${otp}. It is valid for ${OTP_EXPIRY_MINUTES} minutes.`,
-      PhoneNumber: formattedNumber,
-    };
+    const message = `Your OTP is: ${otp}. It is valid for ${OTP_EXPIRY_MINUTES} minutes.`;
 
-    const snsResult = await sns.publish(params).promise();
-    console.log("SNS response:", snsResult);
+    // Send SMS logic here
+    // await sns.publish({ Message: message, PhoneNumber: formattedNumber }).promise();
+    return sendResponse(res, 201, true, "OTP sent to your mobile number.");
 
-    res.status(200).json({ message: "OTP sent to your mobile number." });
   } catch (err) {
     console.error("OTP Send Error:", err);
-    res.status(500).json({ error: err.message });
+    return sendResponse(res, 500, false, err.message);
   }
 };
 
-// Verify OTP
 export const verifyOtp = async (req, res) => {
   try {
-    const { mobileNo, otp } = req.body;
+    const { mobileNo, otp,countryCode } = req.body;
 
-    const user = await Customer.findOne({
-     mobileNo
-    });
-    if (!user) {
-      return res
-        .status(404)
-        .json({ message: "Customer not found.", success: false });
+    if (!mobileNo || !otp || !countryCode) {
+      return sendResponse(res, 400, false, "Mobile number,countryCode and OTP are required");
     }
+
+    const otpRecord = await Otp.findOne({ mobileNo });
+
+    if (!otpRecord) {
+      return sendResponse(res, 404, false, "OTP not found.");
+    }
+
+    const isOtpExpired = new Date() > new Date(otpRecord.expiryDate);
 
     if (
-      user.otp !== otp ||
-      !user.otpValid ||
-      new Date() > new Date(user.otpValid)
+      otpRecord.otp !== parseInt(otp) ||
+      !otpRecord.expiryDate ||
+      isOtpExpired
     ) {
-      return res
-        .status(400)
-        .json({ message: "Invalid or expired OTP.", success: false });
+      return sendResponse(res, 400, false, "Invalid or expired OTP.");
     }
 
-    // OTP is valid
-    user.otp = null;
-    user.otpValid = null;
-    user.status = true 
-    await user.save();
+    const customer = await Customer.findOne({ mobileNo,countryCode });
+    if (!customer) {
+      return sendResponse(res, 404, false, "Customer not found.");
+    }
 
-    return res
-      .status(200)
-      .json({ message: "OTP verified successfully.", success: true, status: user.status });
-  } catch (error) {
-    console.log(error);
-    return res.status(500).json({
-      message: "Internal server error",
-      success: false,
+    // Generate JWT
+    const tokenPayload = {
+      userId: customer._id,
+    };
+
+    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET_KEY, {
+      expiresIn: "1d",
     });
+
+    // Update customer as active and store token
+    customer.isActive = true;
+    customer.token = token;
+    await customer.save();
+
+    // Delete used OTP
+    await Otp.deleteOne({ mobileNo });
+
+    // Set token in cookie
+    res.cookie("token", token, {
+      httpOnly: true,
+      maxAge: 24 * 60 * 60 * 1000,
+      sameSite: "strict",
+    });
+
+    return sendResponse(res, 200, true, "OTP verified successfully. Customer is now active.", {
+      token,
+      user: {
+        _id: customer._id,
+        fullName: customer.fullName,
+        email: customer.email,
+        mobileNo: customer.mobileNo,
+        isActive: customer.isActive,
+      },
+    });
+  } catch (error) {
+    console.error("OTP verification error:", error);
+    return sendResponse(res, 500, false, "Internal server error");
   }
 };
 
-
-export const logout = (req, res) => {
-  console.log("Inside log out customer");
+export const logout = async (req, res) => {
   try {
-    return res.status(200).cookie("token", "", { maxAge: 0 }).json({
-      message: "Logged out succesfully",
-    });
-  } catch (error) {
-    console.log(error);
-     return res.status(500).json({
-       message: "Internal server error",
-       success: false,
-     });
-  }
-};
+    const token = req.cookies.token;
 
-export const toggleCustomerStatus = async (req, res) => {
-  try {
-    const { customerId } = req.params;
+    if (!token) {
+      return sendResponse(res, 400, false, "No token found.");
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
+    const customerId = decoded.userId;
 
     const customer = await Customer.findById(customerId);
     if (!customer) {
-      return res.status(404).json({ message: "Customer not found" });
+      return sendResponse(res, 404, false, "Customer not found.");
     }
 
-    // Flip the status: true -> false or false -> true
-    customer.status = !customer.status;
+    customer.isActive = false;
+    customer.token = null;
     await customer.save();
 
-    return res.status(200).json({
-      message: `Customer account has been ${
-        customer.status ? "activated" : "deactivated"
-      }.`,
-      status: customer.status,
+    // Clear token cookie
+    res.cookie("token", "", {
+      maxAge: 0,
+      httpOnly: true,
+      sameSite: "strict",
     });
+
+    return sendResponse(res, 200, true, "Logged out successfully.");
   } catch (error) {
-    console.log("Error toggling customer status:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    console.error("Logout error:", error);
+    return sendResponse(res, 500, false, "Internal server error");
   }
 };
+export const updateProfile = async (req, res) => {
+  try {
+    const customerId = req.id;
+
+    const {
+      fullName,
+
+      // Address-related
+      addressId,
+      type,
+      address_line_1,
+      address_line_2,
+      landmark,
+      city,
+      state,
+      pincode,
+      address_url,
+      coordinates, // [longitude, latitude]
+    } = req.body;
+
+    let imageUrl;
+    const parsedCoordinates = [];
+
+    // Upload image to Cloudinary
+    if (req.files && req.files["image"] && req.files["image"][0]) {
+      const imagePath = req.files["image"][0].path;
+      const imageResult = await cloudinary.uploader.upload(imagePath, {
+        folder: "uploads/customers/profile",
+        resource_type: "image",
+      });
+      imageUrl = imageResult.secure_url;
+      fs.unlinkSync(imagePath);
+    }
+
+    // Parse coordinates if provided in string format
+    if (coordinates && typeof coordinates === "string") {
+      try {
+        const coordinatesArray = JSON.parse(coordinates);  // Parse stringified array
+        if (Array.isArray(coordinatesArray) && coordinatesArray.length === 2) {
+          parsedCoordinates.push(parseFloat(coordinatesArray[0]), parseFloat(coordinatesArray[1]));
+        } else {
+          throw new Error("Invalid coordinates format");
+        }
+      } catch (err) {
+        console.error("Invalid coordinates format:", err.message);
+        return sendResponse(res, 400, false, "Invalid coordinates format. Should be an array like [lng, lat]");
+      }
+    } else if (Array.isArray(coordinates) && coordinates.length === 2) {
+      parsedCoordinates.push(parseFloat(coordinates[0]), parseFloat(coordinates[1]));
+    } else {
+      return sendResponse(res, 400, false, "Coordinates must be an array of two numbers.");
+    }
+
+    // Update customer basic profile
+    const updatedCustomer = await Customer.findByIdAndUpdate(
+      customerId,
+      {
+        ...(fullName && { fullName }),
+        ...(imageUrl && { image: imageUrl }),
+      },
+      { new: true }
+    );
+
+    // Address handling
+    const addressDataPresent = type && address_line_1 && address_line_2 && city && state && pincode && parsedCoordinates.length === 2;
+    console.log(parsedCoordinates);
+
+    if (addressId) {
+      // Update existing address
+      await CustomerAddress.findOneAndUpdate(
+        { _id: addressId, customerId },
+        {
+          ...(type && { type }),
+          ...(address_line_1 && { address_line_1 }),
+          ...(address_line_2 && { address_line_2 }),
+          ...(landmark && { landmark }),
+          ...(city && { city }),
+          ...(state && { state }),
+          ...(pincode && { pincode }),
+          ...(address_url && { address_url }),
+          ...(parsedCoordinates.length === 2 && {
+            location: {
+              type: "Point",
+              coordinates: parsedCoordinates,
+            },
+          }),
+        },
+        { new: true }
+      );
+    } else if (addressDataPresent) {
+      // Create new address
+      await CustomerAddress.create({
+        customerId,
+        type,
+        address_line_1,
+        address_line_2,
+        landmark: landmark || '',
+        city,
+        state,
+        pincode,
+        address_url: address_url || '',
+        location: {
+          type: "Point",
+          coordinates: parsedCoordinates,
+        },
+      });
+    }
+
+    return sendResponse(res, 200, true, "Profile updated successfully", {
+      customer: updatedCustomer,
+    });
+  } catch (error) {
+    console.error("Update profile error:", error);
+    return sendResponse(res, 500, false, "Internal server error");
+  }
+};
+
