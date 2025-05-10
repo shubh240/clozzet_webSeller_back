@@ -15,7 +15,6 @@ export const createProduct = async (req, res) => {
       subcategory,
       sellingPrice,
       originalPrice,
-      quantity,
       sizeChartId,
       brandName
     } = req.body;
@@ -30,7 +29,6 @@ export const createProduct = async (req, res) => {
       !category ||
       !subcategory ||
       !sellingPrice ||
-      !quantity ||
       !brandName
     ) {
       return sendResponse(res, 400, false, 'All fields are required');
@@ -84,7 +82,6 @@ export const createProduct = async (req, res) => {
       subcategory,
       sellingPrice,
       originalPrice: originalPrice || 0,
-      quantity,
       sizeChartId,
       seller: sellerId,
       primaryImage: primaryImageUrl,
@@ -284,7 +281,6 @@ export const updateProduct = async (req, res) => {
       subcategory,
       sellingPrice,
       originalPrice,
-      quantity,
       sizeChartId,
       brandName,
     } = req.body;
@@ -308,7 +304,6 @@ export const updateProduct = async (req, res) => {
       subcategory,
       sellingPrice,
       originalPrice,
-      quantity,
       sizeChartId,
       brandName,
       updatedBy: sellerId,
