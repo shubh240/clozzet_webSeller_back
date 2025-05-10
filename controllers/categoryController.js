@@ -56,7 +56,7 @@ export const getSellerCategories = async (req, res) => {
           as: "seller",
         },
       },
-      { $unwind: "$seller" },
+      { $unwind: { path: "$seller", preserveNullAndEmptyArrays: true } },
       {
         $lookup: {
           from: "categories",
@@ -65,7 +65,7 @@ export const getSellerCategories = async (req, res) => {
           as: "category",
         },
       },
-      { $unwind: "$category" },
+      { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
       {
         $lookup: {
           from: "selleruserauths",
