@@ -2,49 +2,38 @@ import mongoose from "mongoose";
 
 const customerModel = new mongoose.Schema(
   {
-    firstName: {
+    fullName: {
+      type: String,
+      required: true,
+    },  
+    countryCode: {
       type: String,
       required: true,
     },
-    lastName: {
-      type: String,
+    mobileNo: {
+      type: Number,
       required: true,
+      unique: true,
+    },
+    altMobileNo: {
+      type: Number,
+      unique: true,
     },
     email: {
       type: String,
       required: true,
       unique: true,
     },
-    mobileNo: {
-      type: String,
-      required: true,
-      unique: true,
-    },
-    password: {
-      type: String,
-      required: true,
-      select: false,
-    },
-    otp: {
+    image: {
       type: String,
     },
-    otpValid: {
-      type: Date,
-      default: null,
+    token:{
+      type:String
     },
-
-    address: {
-      street: { type: String, required: true },
-      city: { type: String, required: true },
-      state: { type: String, required: true },
-      postalCode: { type: String, required: true },
-      country: { type: String, required: true },
-    },
-
-    status: {
+    isActive: {
       type: Boolean,
       default: false,
-    },
+    }
   },
   { timestamps: true }
 );

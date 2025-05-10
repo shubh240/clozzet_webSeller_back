@@ -62,11 +62,13 @@ app.use("/api/v1/user", userRoute);
 app.use("/api/v1/products", productRoutes);
 app.use("/api/v1/sizeChart", sizeChartRoute);
 app.use("/api/v1/productSize", productSizeRoute);
+app.use("/api/v1/customer", customerRoute);
+
+
 app.use("/api/v1/order", orderRoute);
 app.use("/api/v1/store", storeRoute);
 app.use("/api/v1/employee", employeeRoute);
 app.use("/api/v1/coupon", couponRoute);
-app.use("/api/v1/customer", customerRoute);
 app.use("/api/v1/seller-dashboard", sellerDashboardRoute);
 app.use("/api/v1/category", categoryRoute);
 app.use("/api/v1/subCategory", subCategoryRoute);

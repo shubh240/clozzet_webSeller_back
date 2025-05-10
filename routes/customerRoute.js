@@ -1,21 +1,24 @@
 import express from "express";
 import {
   signup,
-  login,
   generateOtp,
   verifyOtp,
   logout,
-  toggleCustomerStatus
+  updateProfile
 } from "../controllers/customerController.js";
+import isUserAuthenticated from "../middleware/isUserAuthenticated.js";
+import upload from "../middleware/multer.middleware.js";
 
 const router = express.Router();
 
 router.route("/signup").post(signup);
-router.route("/login").post(login);
 router.route("/generateOtp").post(generateOtp);
 router.route("/verifyOtp").post(verifyOtp);
 router.route("/logout").get(logout);
-router.route("/toggle-status/:customerId").put(toggleCustomerStatus);
-//console.log("User route")
+router.put("/profile", isUserAuthenticated ,
+  upload.fields([
+    { name: "image", maxCount: 1 }
+  ]),
+  updateProfile);
 
 export default router;
