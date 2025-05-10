@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { sendResponse } from "../common/index.js";
 import { ProductSize } from "../models/productSize.model.js";
 
@@ -26,9 +27,8 @@ export const createProductSize = async (req, res) => {
 
 export const getProductSizes = async (req, res) => {
     try {
-      const { productId } = req.params;
-  
-      const productSizes = await ProductSize.find({ productId, isDeleted: false })
+      
+      const productSizes = await ProductSize.find({ isDeleted: false })
         .sort({ createdAt: -1 });
   
       return sendResponse(res, 200, true, "Product sizes fetched", productSizes);
