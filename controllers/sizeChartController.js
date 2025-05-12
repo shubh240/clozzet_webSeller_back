@@ -43,40 +43,20 @@ export const createSizeChart = async (req, res) => {
 
 export const getSizeCharts = async (req, res) => {
   try {
-    const { page, limit } = req.query;
     const sellerId = req.id;
 
     const query = { isDeleted: false, sellerId };
 
-    // Check if pagination parameters are provided
-    const pagination = page && limit;
+    const sizeCharts = await SizeChart.find(query).sort({ createdAt: -1 });
 
-    // Query for size charts based on pagination condition
-    const sizeChartsQuery = SizeChart.find(query).sort({ createdAt: -1 });
-
-    // If pagination is needed, apply skip and limit
-    if (pagination) {
-      const skip = (Number(page) - 1) * Number(limit);
-      sizeChartsQuery.skip(skip).limit(Number(limit));
-    }
-
-    // Execute the query in parallel (count and fetch data)
-    const [total, sizeCharts] = await Promise.all([
-      SizeChart.countDocuments(query),
-      sizeChartsQuery,
-    ]);
-
-    return sendResponse(res, 200, true, "Size charts fetched", {
-      total,
-      page: pagination ? Number(page) : undefined,
-      limit: pagination ? Number(limit) : undefined,
-      data: sizeCharts,
-    });
+    return sendResponse(res, 200, true, "Size charts fetched", sizeCharts);
   } catch (error) {
     console.error("Get SizeCharts Error:", error);
     return sendResponse(res, 500, false, "Internal server error");
   }
 };
+
+
 
 export const updateSizeChart = async (req, res) => {
     try {

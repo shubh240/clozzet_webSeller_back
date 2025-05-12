@@ -115,7 +115,7 @@ export const getProducts = async (req, res) => {
       page,
       limit,
     } = req.query;
-
+    
     const matchStage = { isDeleted: false };
 
     if (search) {
