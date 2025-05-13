@@ -388,3 +388,29 @@ export const deleteProduct = async (req, res) => {
     return sendResponse(res, 500, false, "Error deleting product");
   }
 };
+
+export const statusProduct = async (req, res) => {
+  try {
+    const { productId } = req.params;
+
+    if (!mongoose.isValidObjectId(productId)) {
+      return sendResponse(res, 400, false, "Invalid Product ID");
+    }
+
+    const product = await Product.findById(productId);
+    if (!product || product.isDeleted) {
+      return sendResponse(res, 404, false, "Product not found or is deleted");
+    }
+
+    product.status = !product.status;
+    await product.save();
+
+    return sendResponse(res, 200, true, "Product status toggled successfully", {
+      productId: product._id,
+      status: product.status,
+    });
+  } catch (error) {
+    console.error("Toggle Product Status Error:", error);
+    return sendResponse(res, 500, false, "Error toggling product status");
+  }
+};
