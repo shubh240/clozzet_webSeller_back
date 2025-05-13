@@ -47,9 +47,10 @@ export const getSizeCharts = async (req, res) => {
 
     const query = { isDeleted: false, sellerId };
 
-    const sizeCharts = await SizeChart.find(query).sort({ createdAt: -1 });
-
-    return sendResponse(res, 200, true, "Size charts fetched", sizeCharts);
+    const sizeCharts =  await SizeChart.find(query).sort({ createdAt: -1 });
+    return sendResponse(res, 200, true, "Size charts fetched", {
+      data: sizeCharts,
+    });
   } catch (error) {
     console.error("Get SizeCharts Error:", error);
     return sendResponse(res, 500, false, "Internal server error");

@@ -16,7 +16,7 @@ import sellerDashboardRoute from "./routes/sellerDashboardRoute.js";
 import subCategoryRoute from "./routes/subCategoryRoutes.js";
 import sizeChartRoute from "./routes/sizeChartRoute.js"
 import productSizeRoute from "./routes/productSizeRoute.js"
-
+import cartRoute from "./routes/cartRoute.js"
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -63,6 +63,7 @@ app.use("/api/v1/products", productRoutes);
 app.use("/api/v1/sizeChart", sizeChartRoute);
 app.use("/api/v1/productSize", productSizeRoute);
 app.use("/api/v1/customer", customerRoute);
+app.use("/api/v1/cart", cartRoute);
 
 
 app.use("/api/v1/order", orderRoute);
