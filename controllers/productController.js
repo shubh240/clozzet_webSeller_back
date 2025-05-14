@@ -29,7 +29,8 @@ export const createProduct = async (req, res) => {
       !category ||
       !subcategory ||
       !sellingPrice ||
-      !brandName
+      !brandName ||
+      !sizeChartId
     ) {
       return sendResponse(res, 400, false, 'All fields are required');
     }
@@ -115,27 +116,31 @@ export const getProducts = async (req, res) => {
       page,
       limit,
     } = req.query;
-    
+
     const matchStage = { isDeleted: false };
+    const pipeline = [{ $match: matchStage }];
 
     if (search) {
-      matchStage.name = { $regex: search, $options: "i" };
+      pipeline.push({
+        $match: {
+          name: { $regex: search, $options: "i" },
+        },
+      });
     }
 
+    // Apply category filter BEFORE lookup using $toObjectId
     if (category) {
-      matchStage.category = new mongoose.Types.ObjectId(category);
+      pipeline.push({
+        $match: {
+          $expr: {
+            $eq: ["$category", { $toObjectId: category }]
+          }
+        }
+      });
     }
 
-    if (brandName) {
-      matchStage.brandName = brandName;
-    }
-
-    // If page and limit are provided, apply pagination
-    const skip = page && limit ? (parseInt(page) - 1) * parseInt(limit) : 0;
-    const limitNumber = page && limit ? parseInt(limit) : 0;
-
-    const pipeline = [
-      { $match: matchStage },
+    // Category Lookup
+    pipeline.push(
       {
         $lookup: {
           from: "categories",
@@ -144,7 +149,16 @@ export const getProducts = async (req, res) => {
           as: "category",
         },
       },
-      { $unwind: "$category" },
+{ 
+  $unwind: { 
+    path: "$category", 
+    preserveNullAndEmptyArrays: true 
+  } 
+},
+    );
+
+    // Subcategory Lookup
+    pipeline.push(
       {
         $lookup: {
           from: "subcategories",
@@ -153,7 +167,43 @@ export const getProducts = async (req, res) => {
           as: "subcategory",
         },
       },
-      { $unwind: "$subcategory" },
+{
+  $unwind: {
+    path: "$subcategory",
+    preserveNullAndEmptyArrays: true
+  }
+}
+    );
+
+    // Brand Name Filter (string)
+    if (brandName) {
+      pipeline.push({
+        $match: {
+          brandName: brandName,
+        },
+      });
+    }
+
+    // Size Chart Lookup
+    pipeline.push(
+      {
+        $lookup: {
+          from: "sizecharts",
+          localField: "sizeChart",
+          foreignField: "_id",
+          as: "sizeChart",
+        },
+      },
+      {
+        $unwind: {
+          path: "$sizeChart",
+          preserveNullAndEmptyArrays: true,
+        },
+      }
+    );
+
+    // Images Lookup
+    pipeline.push(
       {
         $lookup: {
           from: "productimages",
@@ -173,14 +223,16 @@ export const getProducts = async (req, res) => {
           ],
           as: "images",
         },
-      },
-      { $sort: { createdAt: -1 } },
-    ];
+      }
+    );
 
-    // Only apply skip and limit if pagination params are provided
+    pipeline.push({ $sort: { createdAt: -1 } });
+
+    // Pagination
     if (page && limit) {
-      pipeline.push({ $skip: skip });
-      pipeline.push({ $limit: limitNumber });
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+      const limitNumber = parseInt(limit);
+      pipeline.push({ $skip: skip }, { $limit: limitNumber });
     }
 
     const [products, total] = await Promise.all([
@@ -200,42 +252,69 @@ export const getProducts = async (req, res) => {
   }
 };
 
+
 export const getProductById = async (req, res) => {
   try {
     const { productId } = req.params;
 
-    // Check if productId is a valid ObjectId
-    if (!mongoose.isValidObjectId(productId)) {
+    // Validate ObjectId string
+    if (!mongoose.Types.ObjectId.isValid(productId)) {
       return sendResponse(res, 400, false, "Invalid Product ID");
     }
 
-    const product = await Product.aggregate([
-      // Match the product by ID and ensure it's not deleted
-      { $match: { _id: new mongoose.Types.ObjectId(productId), isDeleted: false } },
-
-      // Lookup for category
+    const pipeline = [
+      {
+        $match: {
+          $expr: {
+            $and: [
+              { $eq: ["$_id", { $toObjectId: productId }] },
+              { $eq: ["$isDeleted", false] }
+            ]
+          }
+        }
+      },
       {
         $lookup: {
           from: "categories",
           localField: "category",
           foreignField: "_id",
-          as: "category",
-        },
+          as: "category"
+        }
       },
-      { $unwind: "$category" },
-
-      // Lookup for subcategory
+      {
+        $unwind: {
+          path: "$category",
+          preserveNullAndEmptyArrays: true
+        }
+      },
       {
         $lookup: {
           from: "subcategories",
           localField: "subcategory",
           foreignField: "_id",
-          as: "subcategory",
-        },
+          as: "subcategory"
+        }
       },
-      { $unwind: "$subcategory" },
-
-      // Lookup for images
+      {
+        $unwind: {
+          path: "$subcategory",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $lookup: {
+          from: "sizecharts",
+          localField: "sizeChart",
+          foreignField: "_id",
+          as: "sizeChart"
+        }
+      },
+      {
+        $unwind: {
+          path: "$sizeChart",
+          preserveNullAndEmptyArrays: true
+        }
+      },
       {
         $lookup: {
           from: "productimages",
@@ -246,20 +325,25 @@ export const getProductById = async (req, res) => {
                 $expr: {
                   $and: [
                     { $eq: ["$product", "$$productId"] },
-                    { $eq: ["$isDeleted", false] },
-                  ],
-                },
-              },
+                    { $eq: ["$isDeleted", false] }
+                  ]
+                }
+              }
             },
-            { $project: { imageUrl: 1 } },
+            {
+              $project: {
+                imageUrl: 1
+              }
+            }
           ],
-          as: "images",
-        },
-      },
-    ]);
+          as: "images"
+        }
+      }
+    ];
 
-    // If no product is found
-    if (product.length === 0) {
+    const product = await Product.aggregate(pipeline);
+
+    if (!product || product.length === 0) {
       return sendResponse(res, 404, false, "Product not found");
     }
 
