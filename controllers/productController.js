@@ -3,7 +3,7 @@ import { Product } from "../models/product.model.js";
 import { ProductImage } from "../models/productImage.model.js";
 import cloudinary from "../config/cloudinary.js";
 import fs from "fs";
-import mongoose from "mongoose"
+import mongoose from "mongoose";
 
 export const createProduct = async (req, res) => {
   try {
@@ -16,7 +16,7 @@ export const createProduct = async (req, res) => {
       sellingPrice,
       originalPrice,
       sizeChart,
-      brandName
+      brandName,
     } = req.body;
     const sellerId = req.id;
 
@@ -31,25 +31,30 @@ export const createProduct = async (req, res) => {
       !brandName ||
       !sizeChart
     ) {
-      return sendResponse(res, 400, false, 'All fields are required');
+      return sendResponse(res, 400, false, "All fields are required");
     }
 
     // Check for existing SKU
     const existingProduct = await Product.findOne({ sku });
     if (existingProduct) {
-      return sendResponse(res, 400, false, 'Product with this SKU already exists');
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Product with this SKU already exists"
+      );
     }
 
     let primaryImageUrl = "";
     let productImages = [];
 
     // ✅ Primary image required check
-    if (!req.files || !req.files['primaryImage']) {
-      return sendResponse(res, 400, false, 'Primary image is required');
+    if (!req.files || !req.files["primaryImage"]) {
+      return sendResponse(res, 400, false, "Primary image is required");
     }
 
     // Upload primary image
-    const imagePath = req.files['primaryImage'][0].path;
+    const imagePath = req.files["primaryImage"][0].path;
     const imageResult = await cloudinary.uploader.upload(imagePath, {
       folder: "uploads/products/images",
       resource_type: "image",
@@ -58,8 +63,8 @@ export const createProduct = async (req, res) => {
     fs.unlinkSync(imagePath);
 
     // Upload additional images
-    if (req.files['images']) {
-      for (let file of req.files['images']) {
+    if (req.files["images"]) {
+      for (let file of req.files["images"]) {
         const imagePath = file.path;
         const imageResult = await cloudinary.uploader.upload(imagePath, {
           folder: "uploads/products/images",
@@ -99,22 +104,22 @@ export const createProduct = async (req, res) => {
       }
     }
 
-    return sendResponse(res, 201, true, 'Product created successfully', newProduct);
+    return sendResponse(
+      res,
+      201,
+      true,
+      "Product created successfully",
+      newProduct
+    );
   } catch (error) {
-    console.error('Create Product Error:', error);
-    return sendResponse(res, 500, false, 'Error creating product');
+    console.error("Create Product Error:", error);
+    return sendResponse(res, 500, false, "Error creating product");
   }
 };
 
 export const getProducts = async (req, res) => {
   try {
-    const {
-      search = "",
-      category,
-      brandName,
-      page,
-      limit,
-    } = req.query;
+    const { search = "", category, brandName, page, limit } = req.query;
 
     const matchStage = { isDeleted: false };
     const pipeline = [{ $match: matchStage }];
@@ -132,9 +137,9 @@ export const getProducts = async (req, res) => {
       pipeline.push({
         $match: {
           $expr: {
-            $eq: ["$category", { $toObjectId: category }]
-          }
-        }
+            $eq: ["$category", { $toObjectId: category }],
+          },
+        },
       });
     }
 
@@ -148,12 +153,12 @@ export const getProducts = async (req, res) => {
           as: "category",
         },
       },
-{ 
-  $unwind: { 
-    path: "$category", 
-    preserveNullAndEmptyArrays: true 
-  } 
-},
+      {
+        $unwind: {
+          path: "$category",
+          preserveNullAndEmptyArrays: true,
+        },
+      }
     );
 
     // Subcategory Lookup
@@ -166,12 +171,12 @@ export const getProducts = async (req, res) => {
           as: "subcategory",
         },
       },
-{
-  $unwind: {
-    path: "$subcategory",
-    preserveNullAndEmptyArrays: true
-  }
-}
+      {
+        $unwind: {
+          path: "$subcategory",
+          preserveNullAndEmptyArrays: true,
+        },
+      }
     );
 
     // Brand Name Filter (string)
@@ -202,28 +207,26 @@ export const getProducts = async (req, res) => {
     );
 
     // Images Lookup
-    pipeline.push(
-      {
-        $lookup: {
-          from: "productimages",
-          let: { productId: "$_id" },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $eq: ["$product", "$$productId"] },
-                    { $eq: ["$isDeleted", false] },
-                  ],
-                },
+    pipeline.push({
+      $lookup: {
+        from: "productimages",
+        let: { productId: "$_id" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ["$product", "$$productId"] },
+                  { $eq: ["$isDeleted", false] },
+                ],
               },
             },
-            { $project: { imageUrl: 1 } },
-          ],
-          as: "images",
-        },
-      }
-    );
+          },
+          { $project: { imageUrl: 1 } },
+        ],
+        as: "images",
+      },
+    });
 
     pipeline.push({ $sort: { createdAt: -1 } });
 
@@ -251,7 +254,6 @@ export const getProducts = async (req, res) => {
   }
 };
 
-
 export const getProductById = async (req, res) => {
   try {
     const { productId } = req.params;
@@ -267,52 +269,52 @@ export const getProductById = async (req, res) => {
           $expr: {
             $and: [
               { $eq: ["$_id", { $toObjectId: productId }] },
-              { $eq: ["$isDeleted", false] }
-            ]
-          }
-        }
+              { $eq: ["$isDeleted", false] },
+            ],
+          },
+        },
       },
       {
         $lookup: {
           from: "categories",
           localField: "category",
           foreignField: "_id",
-          as: "category"
-        }
+          as: "category",
+        },
       },
       {
         $unwind: {
           path: "$category",
-          preserveNullAndEmptyArrays: true
-        }
+          preserveNullAndEmptyArrays: true,
+        },
       },
       {
         $lookup: {
           from: "subcategories",
           localField: "subcategory",
           foreignField: "_id",
-          as: "subcategory"
-        }
+          as: "subcategory",
+        },
       },
       {
         $unwind: {
           path: "$subcategory",
-          preserveNullAndEmptyArrays: true
-        }
+          preserveNullAndEmptyArrays: true,
+        },
       },
       {
         $lookup: {
           from: "sizecharts",
           localField: "sizeChart",
           foreignField: "_id",
-          as: "sizeChart"
-        }
+          as: "sizeChart",
+        },
       },
       {
         $unwind: {
           path: "$sizeChart",
-          preserveNullAndEmptyArrays: true
-        }
+          preserveNullAndEmptyArrays: true,
+        },
       },
       {
         $lookup: {
@@ -324,20 +326,20 @@ export const getProductById = async (req, res) => {
                 $expr: {
                   $and: [
                     { $eq: ["$product", "$$productId"] },
-                    { $eq: ["$isDeleted", false] }
-                  ]
-                }
-              }
+                    { $eq: ["$isDeleted", false] },
+                  ],
+                },
+              },
             },
             {
               $project: {
-                imageUrl: 1
-              }
-            }
+                imageUrl: 1,
+              },
+            },
           ],
-          as: "images"
-        }
-      }
+          as: "images",
+        },
+      },
     ];
 
     const product = await Product.aggregate(pipeline);
@@ -346,7 +348,13 @@ export const getProductById = async (req, res) => {
       return sendResponse(res, 404, false, "Product not found");
     }
 
-    return sendResponse(res, 200, true, "Product fetched successfully", product[0]);
+    return sendResponse(
+      res,
+      200,
+      true,
+      "Product fetched successfully",
+      product[0]
+    );
   } catch (error) {
     console.error("Get Product By ID Error:", error);
     return sendResponse(res, 500, false, "Error fetching product");
@@ -368,7 +376,7 @@ export const updateProduct = async (req, res) => {
       brandName,
     } = req.body;
 
-    const sellerId = req.id; 
+    const sellerId = req.id;
 
     if (!mongoose.isValidObjectId(productId)) {
       return sendResponse(res, 400, false, "Invalid Product ID");
@@ -399,7 +407,7 @@ export const updateProduct = async (req, res) => {
         resource_type: "image",
       });
       updatedFields.primaryImage = imageResult.secure_url;
-      fs.unlinkSync(imagePath); 
+      fs.unlinkSync(imagePath);
     }
 
     let productImages = [];
@@ -411,15 +419,17 @@ export const updateProduct = async (req, res) => {
           resource_type: "image",
         });
         productImages.push({ imageUrl: imageResult.secure_url });
-        fs.unlinkSync(imagePath); 
+        fs.unlinkSync(imagePath);
       }
     }
 
-    product = await Product.findByIdAndUpdate(productId, updatedFields, { new: true });
-
-    await ProductImage.deleteMany({ product: productId });
+    product = await Product.findByIdAndUpdate(productId, updatedFields, {
+      new: true,
+    });
 
     if (productImages.length > 0) {
+      await ProductImage.deleteMany({ product: productId });
+
       for (const image of productImages) {
         await ProductImage.create({
           product: productId,
@@ -430,7 +440,10 @@ export const updateProduct = async (req, res) => {
     }
 
     const updatedProduct = await Product.findById(productId).lean();
-    const images = await ProductImage.find({ product: productId, isDeleted: false }).lean();
+    const images = await ProductImage.find({
+      product: productId,
+      isDeleted: false,
+    }).lean();
 
     return sendResponse(res, 200, true, "Product updated successfully", {
       ...updatedProduct,
@@ -445,7 +458,7 @@ export const updateProduct = async (req, res) => {
 export const deleteProduct = async (req, res) => {
   try {
     const { productId } = req.params;
-    const sellerId = req.id; 
+    const sellerId = req.id;
 
     if (!mongoose.isValidObjectId(productId)) {
       return sendResponse(res, 400, false, "Invalid Product ID");
@@ -453,7 +466,12 @@ export const deleteProduct = async (req, res) => {
 
     const product = await Product.findById(productId);
     if (!product || product.isDeleted) {
-      return sendResponse(res, 404, false, "Product not found or already deleted");
+      return sendResponse(
+        res,
+        404,
+        false,
+        "Product not found or already deleted"
+      );
     }
 
     product.isDeleted = true;
@@ -508,7 +526,7 @@ export const universalProductList = async (req, res) => {
       sortOrder,
       random,
       page,
-      limit
+      limit,
     } = req.body;
 
     if (!city) {
@@ -527,37 +545,41 @@ export const universalProductList = async (req, res) => {
               $expr: {
                 $and: [
                   { $eq: ["$city", "$$productCity"] },
-                  { $eq: ["$is_deleted", false] }
-                ]
-              }
-            }
-          }
+                  { $eq: ["$is_deleted", false] },
+                ],
+              },
+            },
+          },
         ],
-        as: "cityMatch"
-      }
+        as: "cityMatch",
+      },
     });
 
     pipeline.push({ $match: { cityMatch: { $ne: [] } } });
 
     pipeline.push({ $match: { isDeleted: false } });
-  
+
     if (categories?.length) {
-        const categoryObjectIds = categories.map(id => new mongoose.Types.ObjectId(id));
+      const categoryObjectIds = categories.map(
+        (id) => new mongoose.Types.ObjectId(id)
+      );
 
       pipeline.push({
         $match: {
-          category: { $in: categoryObjectIds }
-        }
+          category: { $in: categoryObjectIds },
+        },
       });
     }
 
     if (subcategories?.length) {
-        const subcategoryObjectIds = subcategories.map(id => new mongoose.Types.ObjectId(id));
+      const subcategoryObjectIds = subcategories.map(
+        (id) => new mongoose.Types.ObjectId(id)
+      );
 
       pipeline.push({
         $match: {
-          subcategory: { $in: subcategoryObjectIds }
-        }
+          subcategory: { $in: subcategoryObjectIds },
+        },
       });
     }
 
@@ -567,11 +589,11 @@ export const universalProductList = async (req, res) => {
           from: "categories",
           localField: "category",
           foreignField: "_id",
-          as: "category"
-        }
+          as: "category",
+        },
       },
       {
-        $unwind: { path: "$category", preserveNullAndEmptyArrays: true }
+        $unwind: { path: "$category", preserveNullAndEmptyArrays: true },
       }
     );
 
@@ -581,11 +603,11 @@ export const universalProductList = async (req, res) => {
           from: "subcategories",
           localField: "subcategory",
           foreignField: "_id",
-          as: "subcategory"
-        }
+          as: "subcategory",
+        },
       },
       {
-        $unwind: { path: "$subcategory", preserveNullAndEmptyArrays: true }
+        $unwind: { path: "$subcategory", preserveNullAndEmptyArrays: true },
       }
     );
 
@@ -595,11 +617,11 @@ export const universalProductList = async (req, res) => {
           from: "sizecharts",
           localField: "sizeChart",
           foreignField: "_id",
-          as: "sizeChart"
-        }
+          as: "sizeChart",
+        },
       },
       {
-        $unwind: { path: "$sizeChart", preserveNullAndEmptyArrays: true }
+        $unwind: { path: "$sizeChart", preserveNullAndEmptyArrays: true },
       }
     );
 
@@ -613,20 +635,20 @@ export const universalProductList = async (req, res) => {
               $expr: {
                 $and: [
                   { $eq: ["$product", "$$productId"] },
-                  { $eq: ["$isDeleted", false] }
-                ]
-              }
-            }
+                  { $eq: ["$isDeleted", false] },
+                ],
+              },
+            },
           },
-          { $project: { imageUrl: 1 } }
+          { $project: { imageUrl: 1 } },
         ],
-        as: "images"
-      }
+        as: "images",
+      },
     });
 
     if (random) {
       pipeline.push({
-        $addFields: { randomSortKey: { $rand: {} } }
+        $addFields: { randomSortKey: { $rand: {} } },
       });
       pipeline.push({ $sort: { randomSortKey: 1 } });
     } else {
@@ -645,23 +667,17 @@ export const universalProductList = async (req, res) => {
     // Pagination logic
     if (!random && page && limit) {
       const skip = (parseInt(page) - 1) * parseInt(limit);
-      pipeline.push(
-        { $skip: skip },
-        { $limit: parseInt(limit) }
-      );
+      pipeline.push({ $skip: skip }, { $limit: parseInt(limit) });
     }
 
     const products = await Product.aggregate(pipeline);
 
     return sendResponse(res, 200, true, "Products fetched successfully", {
       total: products.length,
-      products
+      products,
     });
-
   } catch (error) {
     console.error("Universal Product List Error:", error);
     return sendResponse(res, 500, false, "Server error", error.message);
   }
 };
-
-
