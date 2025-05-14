@@ -15,10 +15,9 @@ export const createProduct = async (req, res) => {
       subcategory,
       sellingPrice,
       originalPrice,
-      sizeChartId,
+      sizeChart,
       brandName
     } = req.body;
-    
     const sellerId = req.id;
 
     // 🔍 Validate required fields
@@ -30,7 +29,7 @@ export const createProduct = async (req, res) => {
       !subcategory ||
       !sellingPrice ||
       !brandName ||
-      !sizeChartId
+      !sizeChart
     ) {
       return sendResponse(res, 400, false, 'All fields are required');
     }
@@ -83,7 +82,7 @@ export const createProduct = async (req, res) => {
       subcategory,
       sellingPrice,
       originalPrice: originalPrice || 0,
-      sizeChartId,
+      sizeChart,
       seller: sellerId,
       primaryImage: primaryImageUrl,
       createdBy: sellerId,
@@ -365,7 +364,7 @@ export const updateProduct = async (req, res) => {
       subcategory,
       sellingPrice,
       originalPrice,
-      sizeChartId,
+      sizeChart,
       brandName,
     } = req.body;
 
@@ -388,7 +387,7 @@ export const updateProduct = async (req, res) => {
       subcategory,
       sellingPrice,
       originalPrice,
-      sizeChartId,
+      sizeChart,
       brandName,
       updatedBy: sellerId,
     };

@@ -346,7 +346,7 @@ export const addAddress = async (req, res) => {
       !Array.isArray(location.coordinates) ||
       location.coordinates.length !== 2
     ) {
-      return res.status(400).json({ message: "All required fields must be provided" });
+      return sendResponse(res, 400, false, 'All required fields must be provided');
     }
 
     const newAddress = await CustomerAddress.create({
@@ -365,9 +365,9 @@ export const addAddress = async (req, res) => {
       },
     });
 
-    res.status(201).json({ message: "Address created", data: newAddress });
+    return sendResponse(res, 201, true, 'Address created', newAddress);
   } catch (error) {
-    res.status(500).json({ message: "Server Error", error: error.message });
+    return sendResponse(res, 500, false, error.message);
   }
 };
 
@@ -380,9 +380,10 @@ export const getAllAddresses = async (req, res) => {
       is_deleted: false
     }).sort({ createdAt: -1 });
 
-    res.status(200).json({ data: addresses });
+    return sendResponse(res, 200, true, { data: addresses });
+
   } catch (error) {
-    res.status(500).json({ message: "Server Error", error: error.message });
+    return sendResponse(res, 500, false, error.message);
   }
 };
 
@@ -401,7 +402,7 @@ export const getAddressById = async (req, res) => {
 
     res.status(200).json({ data: address });
   } catch (error) {
-    res.status(500).json({ message: "Server Error", error: error.message });
+    return sendResponse(res, 500, false, error.message);
   }
 };
 
@@ -461,7 +462,7 @@ export const updateAddress = async (req, res) => {
 
     res.status(200).json({ message: "Address updated", data: updated });
   } catch (error) {
-    res.status(500).json({ message: "Server Error", error: error.message });
+    return sendResponse(res, 500, false, error.message);
   }
 };
 
@@ -479,6 +480,6 @@ export const deleteAddress = async (req, res) => {
 
     res.status(200).json({ message: "Address deleted successfully" });
   } catch (error) {
-    res.status(500).json({ message: "Server Error", error: error.message });
+    return sendResponse(res, 500, false, error.message);
   }
 };
