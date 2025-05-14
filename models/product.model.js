@@ -22,6 +22,7 @@ const ProductSchema = new mongoose.Schema(
     sizeChart: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "SizeChart",
+      required: true,
     },
     seller: {
       type: mongoose.Schema.Types.ObjectId,
