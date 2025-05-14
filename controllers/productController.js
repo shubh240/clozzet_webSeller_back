@@ -497,3 +497,171 @@ export const statusProduct = async (req, res) => {
     return sendResponse(res, 500, false, "Error toggling product status");
   }
 };
+
+export const universalProductList = async (req, res) => {
+  try {
+    const {
+      city,
+      categories,
+      subcategories,
+      sortBy,
+      sortOrder,
+      random,
+      page,
+      limit
+    } = req.body;
+
+    if (!city) {
+      return sendResponse(res, 400, false, "City is required");
+    }
+
+    const pipeline = [];
+
+    pipeline.push({
+      $lookup: {
+        from: "customeraddresses",
+        let: { productCity: city },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ["$city", "$$productCity"] },
+                  { $eq: ["$is_deleted", false] }
+                ]
+              }
+            }
+          }
+        ],
+        as: "cityMatch"
+      }
+    });
+
+    pipeline.push({ $match: { cityMatch: { $ne: [] } } });
+
+    pipeline.push({ $match: { isDeleted: false } });
+  
+    if (categories?.length) {
+        const categoryObjectIds = categories.map(id => new mongoose.Types.ObjectId(id));
+
+      pipeline.push({
+        $match: {
+          category: { $in: categoryObjectIds }
+        }
+      });
+    }
+
+    if (subcategories?.length) {
+        const subcategoryObjectIds = subcategories.map(id => new mongoose.Types.ObjectId(id));
+
+      pipeline.push({
+        $match: {
+          subcategory: { $in: subcategoryObjectIds }
+        }
+      });
+    }
+
+    pipeline.push(
+      {
+        $lookup: {
+          from: "categories",
+          localField: "category",
+          foreignField: "_id",
+          as: "category"
+        }
+      },
+      {
+        $unwind: { path: "$category", preserveNullAndEmptyArrays: true }
+      }
+    );
+
+    pipeline.push(
+      {
+        $lookup: {
+          from: "subcategories",
+          localField: "subcategory",
+          foreignField: "_id",
+          as: "subcategory"
+        }
+      },
+      {
+        $unwind: { path: "$subcategory", preserveNullAndEmptyArrays: true }
+      }
+    );
+
+    pipeline.push(
+      {
+        $lookup: {
+          from: "sizecharts",
+          localField: "sizeChart",
+          foreignField: "_id",
+          as: "sizeChart"
+        }
+      },
+      {
+        $unwind: { path: "$sizeChart", preserveNullAndEmptyArrays: true }
+      }
+    );
+
+    pipeline.push({
+      $lookup: {
+        from: "productimages",
+        let: { productId: "$_id" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ["$product", "$$productId"] },
+                  { $eq: ["$isDeleted", false] }
+                ]
+              }
+            }
+          },
+          { $project: { imageUrl: 1 } }
+        ],
+        as: "images"
+      }
+    });
+
+    if (random) {
+      pipeline.push({
+        $addFields: { randomSortKey: { $rand: {} } }
+      });
+      pipeline.push({ $sort: { randomSortKey: 1 } });
+    } else {
+      let sortField = "createdAt";
+
+      if (sortBy === "price") {
+        sortField = "sellingPrice";
+      } else if (sortBy) {
+        sortField = sortBy;
+      }
+
+      const order = sortOrder === "asc" ? 1 : -1;
+      pipeline.push({ $sort: { [sortField]: order } });
+    }
+
+    // Pagination logic
+    if (!random && page && limit) {
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+      pipeline.push(
+        { $skip: skip },
+        { $limit: parseInt(limit) }
+      );
+    }
+
+    const products = await Product.aggregate(pipeline);
+
+    return sendResponse(res, 200, true, "Products fetched successfully", {
+      total: products.length,
+      products
+    });
+
+  } catch (error) {
+    console.error("Universal Product List Error:", error);
+    return sendResponse(res, 500, false, "Server error", error.message);
+  }
+};
+
+

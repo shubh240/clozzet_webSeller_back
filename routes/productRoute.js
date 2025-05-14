@@ -6,7 +6,8 @@ import {
   getProductById,
   updateProduct,
   deleteProduct,
-  statusProduct
+  statusProduct,
+  universalProductList
 } from '../controllers/productController.js';
 import isUserAuthenticated from "../middleware/isUserAuthenticated.js";
 
@@ -39,5 +40,7 @@ router.put(
 router.delete('/delete-product/:productId', isUserAuthenticated, deleteProduct);
 
 router.patch('/status-product/:productId', isUserAuthenticated, statusProduct);
+
+router.post('/product-filters', isUserAuthenticated, universalProductList); 
 
 export default router;
