@@ -4,7 +4,12 @@ import {
   generateOtp,
   verifyOtp,
   logout,
-  updateProfile
+  updateProfile,
+  addAddress,
+  getAllAddresses,
+  getAddressById,
+  updateAddress,
+  deleteAddress
 } from "../controllers/customerController.js";
 import isUserAuthenticated from "../middleware/isUserAuthenticated.js";
 import upload from "../middleware/multer.middleware.js";
@@ -20,5 +25,16 @@ router.put("/profile", isUserAuthenticated ,
     { name: "image", maxCount: 1 }
   ]),
   updateProfile);
+
+
+/**
+ * Manage Address
+ */
+
+router.post("/add-address",isUserAuthenticated, addAddress);
+router.get("/list-address",isUserAuthenticated, getAllAddresses);
+router.get("/list-addresById/:id",isUserAuthenticated, getAddressById);
+router.put("/update-address/:id",isUserAuthenticated, updateAddress);
+router.delete("/delete-address/:id",isUserAuthenticated, deleteAddress);
 
 export default router;

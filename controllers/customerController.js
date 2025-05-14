@@ -200,6 +200,7 @@ export const logout = async (req, res) => {
     return sendResponse(res, 500, false, "Internal server error");
   }
 };
+
 export const updateProfile = async (req, res) => {
   try {
     const customerId = req.id;
@@ -317,3 +318,168 @@ export const updateProfile = async (req, res) => {
   }
 };
 
+/**
+ * Manage Address
+ */
+export const addAddress = async (req, res) => {
+  try {
+    const {
+      type,
+      address_line_1,
+      address_line_2,
+      landmark,
+      city,
+      state,
+      pincode,
+      address_url,
+      location,
+    } = req.body;
+
+    if (
+      !type ||
+      !address_line_1 ||
+      !address_line_2 ||
+      !city ||
+      !state ||
+      !pincode ||
+      !location ||
+      !Array.isArray(location.coordinates) ||
+      location.coordinates.length !== 2
+    ) {
+      return sendResponse(res, 400, false, 'All required fields must be provided');
+    }
+
+    const newAddress = await CustomerAddress.create({
+      customerId: req.id,
+      type,
+      address_line_1,
+      address_line_2,
+      landmark,
+      city,
+      state,
+      pincode,
+      address_url,
+      location: {
+        type: "Point",
+        coordinates: location.coordinates.map(Number),
+      },
+    });
+
+    return sendResponse(res, 201, true, 'Address created', newAddress);
+  } catch (error) {
+    return sendResponse(res, 500, false, error.message);
+  }
+};
+
+
+// Get all addresses for customer
+export const getAllAddresses = async (req, res) => {
+  try {
+    const addresses = await CustomerAddress.find({
+      customerId: req.id,
+      is_deleted: false
+    }).sort({ createdAt: -1 });
+
+    return sendResponse(res, 200, true, { data: addresses });
+
+  } catch (error) {
+    return sendResponse(res, 500, false, error.message);
+  }
+};
+
+// Get single address by ID
+export const getAddressById = async (req, res) => {
+  try {
+    const address = await CustomerAddress.findOne({
+      _id: req.params.id,
+      customerId: req.id,
+      is_deleted: false
+    });
+
+    if (!address) {
+      return res.status(404).json({ message: "Address not found" });
+    }
+
+    res.status(200).json({ data: address });
+  } catch (error) {
+    return sendResponse(res, 500, false, error.message);
+  }
+};
+
+// Update address
+export const updateAddress = async (req, res) => {
+  try {
+    const {
+      type,
+      address_line_1,
+      address_line_2,
+      landmark,
+      city,
+      state,
+      pincode,
+      address_url,
+      location
+    } = req.body;
+
+    const updateFields = {
+      type,
+      address_line_1,
+      address_line_2,
+      landmark,
+      city,
+      state,
+      pincode,
+      address_url
+    };
+
+    // If location is provided, validate it
+    if (location) {
+      if (
+        typeof location !== 'object' ||
+        location.type !== 'Point' ||
+        !Array.isArray(location.coordinates) ||
+        location.coordinates.length !== 2 ||
+        location.coordinates.some(coord => isNaN(coord))
+      ) {
+        return res.status(400).json({ message: "Invalid location format" });
+      }
+
+      updateFields.location = {
+        type: "Point",
+        coordinates: location.coordinates.map(Number),
+      };
+    }
+
+    const updated = await CustomerAddress.findOneAndUpdate(
+      { _id: req.params.id, customerId: req.id, is_deleted: false },
+      updateFields,
+      { new: true }
+    );
+
+    if (!updated) {
+      return res.status(404).json({ message: "Address not found or already deleted" });
+    }
+
+    res.status(200).json({ message: "Address updated", data: updated });
+  } catch (error) {
+    return sendResponse(res, 500, false, error.message);
+  }
+};
+
+export const deleteAddress = async (req, res) => {
+  try {
+    const deleted = await CustomerAddress.findOneAndUpdate(
+      { _id: req.params.id, customerId: req.id, is_deleted: false },
+      { is_deleted: true },
+      { new: true }
+    );
+
+    if (!deleted) {
+      return res.status(404).json({ message: "Address not found or already deleted" });
+    }
+
+    res.status(200).json({ message: "Address deleted successfully" });
+  } catch (error) {
+    return sendResponse(res, 500, false, error.message);
+  }
+};
