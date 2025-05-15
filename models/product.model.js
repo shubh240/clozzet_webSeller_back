@@ -25,7 +25,7 @@ const ProductSchema = new mongoose.Schema(
     },
     seller: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "SellerAuth",
+      ref: "SellerUserAuth",
       required: true,
     },
     primaryImage: {
@@ -35,7 +35,7 @@ const ProductSchema = new mongoose.Schema(
     isDeleted: { type: Boolean, default: false },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "SellerAuth",
+      ref: "SellerUserAuth",
       required: true,
     },
     updatedBy: {

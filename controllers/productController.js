@@ -121,7 +121,7 @@ export const getProducts = async (req, res) => {
   try {
     const { search = "", category, brandName, page, limit } = req.query;
 
-    const matchStage = { isDeleted: false };
+    const matchStage = {  seller: new mongoose.Types.ObjectId(req.id), isDeleted: false };
     const pipeline = [{ $match: matchStage }];
 
     if (search) {
@@ -227,6 +227,24 @@ export const getProducts = async (req, res) => {
         as: "images",
       },
     });
+
+    // Store Info Lookup
+    pipeline.push(
+      {
+        $lookup: {
+          from: "storeinfos",
+          localField: "seller",
+          foreignField: "sellerAuthId",
+          as: "storeInfo",
+        },
+      },
+      {
+        $unwind: {
+          path: "$storeInfo",
+          preserveNullAndEmptyArrays: true,
+        },
+      }
+    );
 
     pipeline.push({ $sort: { createdAt: -1 } });
 
@@ -340,6 +358,21 @@ export const getProductById = async (req, res) => {
           as: "images",
         },
       },
+      {
+        $lookup: {
+          from: "storeinfos",
+          localField: "seller",
+          foreignField: "sellerAuthId",
+          as: "storeInfo",
+        },
+      },
+      {
+        $unwind: {
+          path: "$storeInfo",
+          preserveNullAndEmptyArrays: true,
+        },
+      }
+
     ];
 
     const product = await Product.aggregate(pipeline);
