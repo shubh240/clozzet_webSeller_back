@@ -28,16 +28,17 @@ export const addToCart = async (req, res) => {
     });
 
     if (cartProduct) {
-      const newQty = cartProduct.quantity + quantity;
+      return sendResponse(res, 400, false, `Product is already exists in you're cart.`)
+      // const newQty = cartProduct.quantity + quantity;
 
-      if (newQty <= 0) {
-        await CartProduct.findByIdAndDelete(cartProduct._id);
-        return sendResponse(res, 200, true, 'Item removed from cart');
-      }
+      // if (newQty <= 0) {
+      //   await CartProduct.findByIdAndDelete(cartProduct._id);
+      //   return sendResponse(res, 200, true, 'Item removed from cart');
+      // }
 
-      cartProduct.quantity = newQty;
-      await cartProduct.save();
-      return sendResponse(res, 200, true, 'Cart item quantity updated');
+      // cartProduct.quantity = newQty;
+      // await cartProduct.save();
+      // return sendResponse(res, 200, true, 'Cart item quantity updated');
 
     } else {
       if (quantity <= 0) {
