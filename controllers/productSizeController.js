@@ -26,17 +26,23 @@ export const createProductSize = async (req, res) => {
 };
 
 export const getProductSizes = async (req, res) => {
-    try {
-      
-      const productSizes = await ProductSize.find({ isDeleted: false })
-        .sort({ createdAt: -1 });
-  
-      return sendResponse(res, 200, true, "Product sizes fetched", productSizes);
-    } catch (error) {
-      console.error("Get Product Sizes Error:", error);
-      return sendResponse(res, 500, false, "Internal server error");
+  try {
+    const { productId } = req.query;
+
+    const filter = { isDeleted: false };
+    if (productId) {
+      filter.productId = productId;
     }
+
+    const productSizes = await ProductSize.find(filter).sort({ createdAt: -1 });
+
+    return sendResponse(res, 200, true, "Product sizes fetched", productSizes);
+  } catch (error) {
+    console.error("Get Product Sizes Error:", error);
+    return sendResponse(res, 500, false, "Internal server error");
+  }
 };
+
   
 export const updateProductSize = async (req, res) => {
     try {
