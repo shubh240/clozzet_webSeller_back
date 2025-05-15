@@ -22,6 +22,10 @@ const sellerSubCategorySchema = new mongoose.Schema(
       ref: "SubCategory",
       required: true,
     },
+      image: {
+      type: String,
+      required: true,
+    },
     isDeleted: {
       type: Boolean,
       default: false,

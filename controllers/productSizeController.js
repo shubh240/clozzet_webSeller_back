@@ -27,14 +27,21 @@ export const createProductSize = async (req, res) => {
 
 export const getProductSizes = async (req, res) => {
   try {
-    const { productId } = req.query;
+    const { productId, size } = req.query;
 
-    const filter = { isDeleted: false };
+    const query = { isDeleted: false };
+
     if (productId) {
-      filter.productId = productId;
+      query.productId = productId;
     }
 
-    const productSizes = await ProductSize.find(filter).sort({ createdAt: -1 });
+    if (size) {
+      // Accept size as a comma-separated string (e.g., M,L)
+      const sizeArray = size.split(",");
+      query.size = { $in: sizeArray };
+    }
+
+    const productSizes = await ProductSize.find(query).sort({ createdAt: -1 });
 
     return sendResponse(res, 200, true, "Product sizes fetched", productSizes);
   } catch (error) {
