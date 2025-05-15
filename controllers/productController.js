@@ -206,7 +206,6 @@ export const getProducts = async (req, res) => {
       }
     );
 
-    // Images Lookup
     pipeline.push({
       $lookup: {
         from: "productimages",
@@ -228,23 +227,41 @@ export const getProducts = async (req, res) => {
       },
     });
 
-    // Store Info Lookup
     pipeline.push(
       {
         $lookup: {
           from: "storeinfos",
-          localField: "seller",
-          foreignField: "sellerAuthId",
+          let: { sellerId: "$seller" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$sellerAuthId", "$$sellerId"] },
+                    { $eq: ["$is_deleted", false] },
+                  ],
+                },
+              },
+            },
+            {
+              $project: { _id: 1 },
+            },
+          ],
           as: "storeInfo",
         },
       },
       {
-        $unwind: {
-          path: "$storeInfo",
-          preserveNullAndEmptyArrays: true,
+        $addFields: {
+          storeId: { $arrayElemAt: ["$storeInfo._id", 0] },
+        },
+      },
+      {
+        $project: {
+          storeInfo: 0,
         },
       }
     );
+
 
     pipeline.push({ $sort: { createdAt: -1 } });
 
@@ -359,17 +376,35 @@ export const getProductById = async (req, res) => {
         },
       },
       {
-        $lookup: {
-          from: "storeinfos",
-          localField: "seller",
-          foreignField: "sellerAuthId",
-          as: "storeInfo",
+          $lookup: {
+            from: "storeinfos",
+            let: { sellerId: "$seller" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$sellerAuthId", "$$sellerId"] },
+                      { $eq: ["$is_deleted", false] },
+                    ],
+                  },
+                },
+              },
+              {
+                $project: { _id: 1 },
+              },
+            ],
+            as: "storeInfo",
+          },
+      },
+      {
+        $addFields: {
+          storeId: { $arrayElemAt: ["$storeInfo._id", 0] },
         },
       },
       {
-        $unwind: {
-          path: "$storeInfo",
-          preserveNullAndEmptyArrays: true,
+        $project: {
+          storeInfo: 0,
         },
       }
 

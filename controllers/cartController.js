@@ -54,6 +54,37 @@ export const addToCart = async (req, res) => {
   }
 };
 
+  export const updateCartProduct = async (req, res) => {
+    try {
+      const { cartproductId, sizeId, quantity } = req.body;
+
+      if (!cartproductId || !sizeId || !quantity) {
+        return sendResponse(res, 400, false, "Missing or invalid fields");
+      }
+
+      const updatedCart = await CartProduct.findByIdAndUpdate(
+        cartproductId,
+        {
+          $set: {
+            sizeId,
+            quantity
+          },
+        },
+        { new: true }
+      );
+
+      if (!updatedCart) {
+        return sendResponse(res, 404, false, "Cart product not found");
+      }
+
+      return sendResponse(res, 200, true, "Cart product updated", updatedCart);
+    } catch (error) {
+      console.error("Update Cart Product Error:", error);
+      return sendResponse(res, 500, false, "Error updating cart product", error.message);
+    }
+  };
+
+
 export const getCart = async (req, res) => {
   try {
     const customerId = req.id;
