@@ -590,6 +590,9 @@ export const universalProductList = async (req, res) => {
       city,
       categories,
       subcategories,
+      sizes, 
+      minPrice, 
+      maxPrice,
       sortBy,
       sortOrder,
       random,
@@ -649,6 +652,18 @@ export const universalProductList = async (req, res) => {
           subcategory: { $in: subcategoryObjectIds },
         },
       });
+    }
+
+    if (minPrice !== undefined && maxPrice !== undefined) {
+      pipeline.push({
+        $match: {
+          sellingPrice: { $gte: minPrice, $lte: maxPrice },
+        },
+      });
+    } else if (minPrice !== undefined) {
+      pipeline.push({ $match: { sellingPrice: { $gte: minPrice } } });
+    } else if (maxPrice !== undefined) {
+      pipeline.push({ $match: { sellingPrice: { $lte: maxPrice } } });
     }
 
     pipeline.push(
@@ -714,6 +729,69 @@ export const universalProductList = async (req, res) => {
       },
     });
 
+    pipeline.push({
+      $lookup: {
+        from: "productsizes",
+        localField: "_id",
+        foreignField: "productId",
+        as: "productSizes",
+      },
+    });
+
+    pipeline.push({
+      $addFields: {
+        productSizes: {
+          $filter: {
+            input: "$productSizes",
+            as: "ps",
+            cond: { $eq: ["$$ps.isDeleted", false] },
+          },
+        },
+      },
+    });
+
+    
+    pipeline.push(
+      {
+        $lookup: {
+          from: "storeinfos",
+          let: { sellerId: "$seller" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$sellerAuthId", "$$sellerId"] },
+                    { $eq: ["$is_deleted", false] },
+                  ],
+                },
+              },
+            },
+            {
+              $project: { _id: 1 },
+            },
+          ],
+          as: "storeInfo",
+        },
+      },
+      {
+        $addFields: {
+          storeId: { $arrayElemAt: ["$storeInfo._id", 0] },
+        },
+      },
+      {
+        $project: {
+          storeInfo: 0,
+        },
+      }
+    );
+    if (sizes?.length) {
+      pipeline.push({
+        $match: {
+          "productSizes.size": { $in: sizes },
+        },
+      });
+    }
     if (random) {
       pipeline.push({
         $addFields: { randomSortKey: { $rand: {} } },

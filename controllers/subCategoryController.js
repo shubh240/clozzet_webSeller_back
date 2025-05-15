@@ -1,7 +1,8 @@
 import mongoose from "mongoose";
 import { SellerSubCategory } from "../models/sellerSubCategory.model.js";
 import { sendResponse } from "../common/index.js";
-
+import cloudinary from "../config/cloudinary.js";
+import fs from "fs";
 export const createSellerSubCategory = async (req, res) => {
   try {
     const { sellerId, categoryId, sellerCategoryId, subCategoryId } = req.body;
@@ -23,12 +24,26 @@ export const createSellerSubCategory = async (req, res) => {
       return sendResponse(res, 400, false, "Seller SubCategory already exists.");
     }
 
+    let imageUrl;
+
+    // ✅ Upload image to Cloudinary if available
+    if (req.files && req.files["image"] && req.files["image"][0]) {
+      const imagePath = req.files["image"][0].path;
+      const uploadResult = await cloudinary.uploader.upload(imagePath, {
+        folder: "uploads/seller/subcategories",
+        resource_type: "image",
+      });
+      imageUrl = uploadResult.secure_url;
+      fs.unlinkSync(imagePath); // Delete local file after upload
+    }
+
     const newEntry = new SellerSubCategory({
       sellerId,
       categoryId,
       sellerCategoryId,
       subCategoryId,
       createdBy,
+      ...(imageUrl && { image: imageUrl }), 
     });
 
     const saved = await newEntry.save();
@@ -92,7 +107,9 @@ export const updateSellerSubCategory = async (req, res) => {
     const { id } = req.params;
     const { sellerCategoryId, subCategoryId } = req.body;
     const updatedBy = req.id; 
-
+    if (!sellerCategoryId || !subCategoryId) {
+      return sendResponse(res, 400, false, "Both sellerCategoryId and subCategoryId are required.");
+    }
     const existingSubCategory = await SellerSubCategory.findOne({
       _id: id,
       isDeleted: false,
@@ -112,10 +129,23 @@ export const updateSellerSubCategory = async (req, res) => {
     if (duplicate) {
       return sendResponse(res, 400, false, "This subcategory already exists under the specified seller category.");
     }
+    let imageUrl = existingSubCategory.image;
+
+    // Handle image upload if a new image is provided
+    if (req.files && req.files["image"] && req.files["image"][0]) {
+      const imagePath = req.files["image"][0].path;
+      const uploadResult = await cloudinary.uploader.upload(imagePath, {
+        folder: "uploads/seller/subcategories",
+        resource_type: "image",
+      });
+      imageUrl = uploadResult.secure_url;
+      fs.unlinkSync(imagePath); // Delete temp image file
+    }
 
     existingSubCategory.sellerCategoryId = sellerCategoryId;
     existingSubCategory.subCategoryId = subCategoryId;
     existingSubCategory.updatedBy = updatedBy;
+    existingSubCategory.image = imageUrl;
 
     const updatedSubCategory = await existingSubCategory.save();
 
