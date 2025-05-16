@@ -15,6 +15,23 @@ export const addToCart = async (req, res) => {
     if (cartCount >= 5) {
         return sendResponse(res, 400, false, 'Maximum 5 carts allowed per customer');
     }
+
+    const sizeData = await ProductSize.findOne({ _id: sizeId, isDeleted: false });
+    if (!sizeData) {
+      return sendResponse(res, 404, false, 'Size not found');
+    }
+    
+    /**
+     * check available stock
+     */
+    if (quantity > sizeData.quantity) {
+      return sendResponse(
+        res,
+        400,
+        false,
+        `Only ${sizeData.quantity} item(s) available in stock for this size`
+      );
+    }
     let cart = await Cart.findOne({ customerId, storeId });
     
     if (!cart) {
@@ -54,35 +71,53 @@ export const addToCart = async (req, res) => {
   }
 };
 
-  export const updateCartProduct = async (req, res) => {
-    try {
-      const { cartproductId, sizeId, quantity } = req.body;
+export const updateCartProduct = async (req, res) => {
+  try {
+    const { cartproductId, sizeId, quantity } = req.body;
 
-      if (!cartproductId || !sizeId || !quantity) {
-        return sendResponse(res, 400, false, "Missing or invalid fields");
-      }
-
-      const updatedCart = await CartProduct.findByIdAndUpdate(
-        cartproductId,
-        {
-          $set: {
-            sizeId,
-            quantity
-          },
-        },
-        { new: true }
-      );
-
-      if (!updatedCart) {
-        return sendResponse(res, 404, false, "Cart product not found");
-      }
-
-      return sendResponse(res, 200, true, "Cart product updated", updatedCart);
-    } catch (error) {
-      console.error("Update Cart Product Error:", error);
-      return sendResponse(res, 500, false, "Error updating cart product", error.message);
+    if (!cartproductId || !sizeId || !quantity || quantity < 1) {
+      return sendResponse(res, 400, false, "Missing or invalid fields");
     }
-  };
+
+    const sizeData = await ProductSize.findOne({ _id: sizeId, isDeleted: false });
+
+    if (!sizeData) {
+      return sendResponse(res, 404, false, "Size not found");
+    }
+
+    /**
+     * check available stock
+     */
+    if (quantity > sizeData.quantity) {
+      return sendResponse(
+        res,
+        400,
+        false,
+        `Only ${sizeData.quantity} item(s) available in stock for this size`
+      );
+    }
+
+    const updatedCart = await CartProduct.findByIdAndUpdate(
+      cartproductId,
+      {
+        $set: {
+          sizeId,
+          quantity,
+        },
+      },
+      { new: true }
+    );
+
+    if (!updatedCart) {
+      return sendResponse(res, 404, false, "Cart product not found");
+    }
+
+    return sendResponse(res, 200, true, "Cart product updated", updatedCart);
+  } catch (error) {
+    console.error("Update Cart Product Error:", error);
+    return sendResponse(res, 500, false, "Error updating cart product", error.message);
+  }
+};
 
 
 export const getCart = async (req, res) => {
