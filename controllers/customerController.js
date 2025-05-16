@@ -380,7 +380,7 @@ export const getAllAddresses = async (req, res) => {
       is_deleted: false
     }).sort({ createdAt: -1 });
 
-    return sendResponse(res, 200, true, { data: addresses });
+    return sendResponse(res, 200, true,"Address data found", addresses);
 
   } catch (error) {
     return sendResponse(res, 500, false, error.message);
@@ -397,10 +397,10 @@ export const getAddressById = async (req, res) => {
     });
 
     if (!address) {
-      return res.status(404).json({ message: "Address not found" });
+      return sendResponse(res, 400, false,"Address not found");
     }
+    return sendResponse(res, 200, true,"Address data found", address);
 
-    res.status(200).json({ data: address });
   } catch (error) {
     return sendResponse(res, 500, false, error.message);
   }
@@ -441,7 +441,7 @@ export const updateAddress = async (req, res) => {
         location.coordinates.length !== 2 ||
         location.coordinates.some(coord => isNaN(coord))
       ) {
-        return res.status(400).json({ message: "Invalid location format" });
+        return sendResponse(res, 400, false,"Invalid location format");
       }
 
       updateFields.location = {
@@ -457,10 +457,10 @@ export const updateAddress = async (req, res) => {
     );
 
     if (!updated) {
-      return res.status(404).json({ message: "Address not found or already deleted" });
+      return sendResponse(res, 400, false,"Address not found or already deleted");
     }
+    return sendResponse(res, 200, true,"Address updated",updated);
 
-    res.status(200).json({ message: "Address updated", data: updated });
   } catch (error) {
     return sendResponse(res, 500, false, error.message);
   }
@@ -475,10 +475,10 @@ export const deleteAddress = async (req, res) => {
     );
 
     if (!deleted) {
-      return res.status(404).json({ message: "Address not found or already deleted" });
+      return sendResponse(res, 400, false,"Address not found or already deleted");
     }
+      return sendResponse(res, 200, true,"Address deleted successfully");
 
-    res.status(200).json({ message: "Address deleted successfully" });
   } catch (error) {
     return sendResponse(res, 500, false, error.message);
   }

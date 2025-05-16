@@ -35,6 +35,8 @@ export const createSellerSubCategory = async (req, res) => {
       });
       imageUrl = uploadResult.secure_url;
       fs.unlinkSync(imagePath); // Delete local file after upload
+    }else {
+      return sendResponse(res, 400, false, "Image is required.");
     }
 
     const newEntry = new SellerSubCategory({

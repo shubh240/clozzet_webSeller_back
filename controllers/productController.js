@@ -116,12 +116,14 @@ export const createProduct = async (req, res) => {
     return sendResponse(res, 500, false, "Error creating product");
   }
 };
-
 export const getProducts = async (req, res) => {
   try {
     const { search = "", category, brandName, page, limit } = req.query;
+    const matchStage = {
+      seller: new mongoose.Types.ObjectId(req.id),
+      isDeleted: false,
+    };
 
-    const matchStage = {  seller: new mongoose.Types.ObjectId(req.id), isDeleted: false };
     const pipeline = [{ $match: matchStage }];
 
     if (search) {
@@ -132,7 +134,6 @@ export const getProducts = async (req, res) => {
       });
     }
 
-    // Apply category filter BEFORE lookup using $toObjectId
     if (category) {
       pipeline.push({
         $match: {
@@ -143,7 +144,7 @@ export const getProducts = async (req, res) => {
       });
     }
 
-    // Category Lookup
+    // Lookups
     pipeline.push(
       {
         $lookup: {
@@ -158,11 +159,7 @@ export const getProducts = async (req, res) => {
           path: "$category",
           preserveNullAndEmptyArrays: true,
         },
-      }
-    );
-
-    // Subcategory Lookup
-    pipeline.push(
+      },
       {
         $lookup: {
           from: "subcategories",
@@ -176,20 +173,7 @@ export const getProducts = async (req, res) => {
           path: "$subcategory",
           preserveNullAndEmptyArrays: true,
         },
-      }
-    );
-
-    // Brand Name Filter (string)
-    if (brandName) {
-      pipeline.push({
-        $match: {
-          brandName: brandName,
-        },
-      });
-    }
-
-    // Size Chart Lookup
-    pipeline.push(
+      },
       {
         $lookup: {
           from: "sizecharts",
@@ -203,31 +187,27 @@ export const getProducts = async (req, res) => {
           path: "$sizeChart",
           preserveNullAndEmptyArrays: true,
         },
-      }
-    );
-
-    pipeline.push({
-      $lookup: {
-        from: "productimages",
-        let: { productId: "$_id" },
-        pipeline: [
-          {
-            $match: {
-              $expr: {
-                $and: [
-                  { $eq: ["$product", "$$productId"] },
-                  { $eq: ["$isDeleted", false] },
-                ],
+      },
+      {
+        $lookup: {
+          from: "productimages",
+          let: { productId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$product", "$$productId"] },
+                    { $eq: ["$isDeleted", false] },
+                  ],
+                },
               },
             },
-          },
-          { $project: { imageUrl: 1 } },
-        ],
-        as: "images",
+            { $project: { imageUrl: 1 } },
+          ],
+          as: "images",
+        },
       },
-    });
-
-    pipeline.push(
       {
         $lookup: {
           from: "storeinfos",
@@ -262,25 +242,41 @@ export const getProducts = async (req, res) => {
       }
     );
 
+    if (brandName) {
+      pipeline.push({
+        $match: {
+          brandName: brandName,
+        },
+      });
+    }
 
     pipeline.push({ $sort: { createdAt: -1 } });
 
-    // Pagination
-    if (page && limit) {
-      const skip = (parseInt(page) - 1) * parseInt(limit);
-      const limitNumber = parseInt(limit);
-      pipeline.push({ $skip: skip }, { $limit: limitNumber });
+    // Clone pipeline without pagination for count
+    const countPipeline = pipeline.filter(
+      (stage) => !stage.$skip && !stage.$limit
+    );
+    countPipeline.push({ $count: "total" });
+
+    // Safe pagination
+    const parsedPage = parseInt(page);
+    const parsedLimit = parseInt(limit);
+    if (!isNaN(parsedPage) && parsedPage > 0 && !isNaN(parsedLimit) && parsedLimit > 0) {
+      const skip = (parsedPage - 1) * parsedLimit;
+      pipeline.push({ $skip: skip }, { $limit: parsedLimit });
     }
 
-    const [products, total] = await Promise.all([
+    const [products, countResult] = await Promise.all([
       Product.aggregate(pipeline),
-      Product.countDocuments(matchStage),
+      Product.aggregate(countPipeline),
     ]);
+
+    const total = countResult.length > 0 ? countResult[0].total : 0;
 
     return sendResponse(res, 200, true, "Products fetched successfully", {
       total,
-      page: page ? parseInt(page) : 1,
-      limit: limit ? parseInt(limit) : total,
+      page: parsedPage || 1,
+      limit: parsedLimit || total,
       products,
     });
   } catch (error) {
@@ -288,6 +284,7 @@ export const getProducts = async (req, res) => {
     return sendResponse(res, 500, false, "Error fetching products");
   }
 };
+
 
 export const getProductById = async (req, res) => {
   try {
