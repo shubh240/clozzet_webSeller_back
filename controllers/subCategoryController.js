@@ -91,6 +91,7 @@ export const getSellerSubCategories = async (req, res) => {
           sellerCategoryId: 1,
           "sellerCategory.categoryId": 1,
           "subCategory.name": 1,
+          "subCategory._id": 1,
           image:1,
           createdAt: 1,
         },
