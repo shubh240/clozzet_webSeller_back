@@ -1,61 +1,15 @@
 import mongoose from "mongoose";
 
-const orderModel = new mongoose.Schema(
+const orderSchema = new mongoose.Schema(
   {
-    orderNumber: { type: String, required: true, unique: true },
-    orderStatus: {
-      type: String,
-      enum: [
-        "Confirmed",
-        "Ready for Delivery",
-        "Item on the Way",
-        "Delivered",
-        "Refunded",
-        "Scheduled",
-      ],
-      default: "Confirmed",
+    storeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Store",
+      required: true,
     },
-    products: [
-      {
-        productId: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "Product",
-          required: true,
-        },
-        quantity: {
-          type: Number,
-          required: true,
-          default: 1,
-        },
-        price: {
-          type: Number,
-          required: true,
-        },
-      },
-    ],
-    totalAmount: { type: Number, required: true },
-    paymentStatus: {
-      type: String,
-      enum: ["Pending", "Paid", "Failed", "Refunded"],
-      default: "Pending",
-    },
-    paymentMethod: {
-      type: String,
-      enum: ["COD", "UPI", "Card", "NetBanking"],
-      default: "COD",
-    },
-    deliveryAddress: {
-      street: String,
-      city: String,
-      state: String,
-      postalCode: String,
-      country: String,
-    },
-    trackingId: { type: String },
-    expectedDeliveryDate: { type: String },
     sellerId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "SellerUserAuth",
+      ref: "Seller",
       required: true,
     },
     customerId: {
@@ -63,8 +17,94 @@ const orderModel = new mongoose.Schema(
       ref: "Customer",
       required: true,
     },
+    customerAddressId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "CustomerAddress",
+      required: true,
+    },
+    paymentTypeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "PaymentType",
+      required: true,
+    },
+    orderNumber: {
+      type: String,
+      unique: true,
+      required: true,
+    },
+    transactionId: {
+      type: String,
+    },
+    paymentStatus: {
+      type: String,
+      // enum: ["pending", "success", "failed"],
+      default: "pending",
+    },
+    paymentError: {
+      type: String,
+    },
+    subTotalAmount: {
+      type: Number,
+      required: true,
+    },
+    platformFee: {
+      type: Number,
+      default: 0,
+    },
+    deliveryFee: {
+      type: Number,
+      default: 0,
+    },
+    cgst: {
+      type: Number,
+      default: 0,
+    },
+    sgst: {
+      type: Number,
+      default: 0,
+    },
+    totalAmount: {
+      type: Number,
+      required: true,
+    },
+    invoiceUrl: {
+      type: String,
+    },
+    currency: {
+      type: String,
+      default: "INR",
+    },
+    isCancelled: {
+      type: Boolean,
+      default: false,
+    },
+    cancelledBy: {
+      type: String,
+      // enum: ["customer", "seller", null],
+      default: null,
+    },
+    cancelledReason: {
+      type: String,
+    },
+    cancelledAt: {
+      type: Date,
+    },
+    isRefunded: {
+      type: Boolean,
+      default: false,
+    },
+    refundStatus: {
+      type: String,
+      // enum: ["pending", "completed", "failed", null],
+      default: null,
+    },
   },
-  { timestamps: true }
+  {
+    timestamps: true
+  }
 );
 
-export const Order = mongoose.model("Order", orderModel);
+export const Order = mongoose.model(
+  "Order",
+  orderSchema
+);
