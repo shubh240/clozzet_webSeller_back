@@ -1,29 +1,36 @@
 import { Cart } from "../models/cart.model.js";
 import { sendResponse } from "../common/index.js";
 import { CartProduct } from "../models/cartProduct.model.js";
-import { Product } from "../models/product.model.js"
-import { ProductSize } from "../models/productSize.model.js"
+import { Product } from "../models/product.model.js";
+import { ProductSize } from "../models/productSize.model.js";
 
 export const addToCart = async (req, res) => {
   try {
     const { storeId, productId, sizeId, quantity } = req.body;
-    const customerId = req.id
+    const customerId = req.id;
+
     if (!storeId || !productId || !sizeId || !quantity) {
-      return sendResponse(res, 400, false, 'Missing required fields');
-    }
-    const cartCount = await Cart.countDocuments({customerId});
-    if (cartCount >= 5) {
-        return sendResponse(res, 400, false, 'Maximum 5 carts allowed per customer');
+      return sendResponse(res, 400, false, "Missing required fields");
     }
 
-    const sizeData = await ProductSize.findOne({ _id: sizeId, isDeleted: false });
-    if (!sizeData) {
-      return sendResponse(res, 404, false, 'Size not found');
+    const cartCount = await Cart.countDocuments({ customerId });
+    if (cartCount >= 5) {
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Maximum 5 carts allowed per customer"
+      );
     }
-    
-    /**
-     * check available stock
-     */
+
+    const sizeData = await ProductSize.findOne({
+      _id: sizeId,
+      isDeleted: false,
+    });
+    if (!sizeData) {
+      return sendResponse(res, 404, false, "Size not found");
+    }
+
     if (quantity > sizeData.quantity) {
       return sendResponse(
         res,
@@ -32,42 +39,39 @@ export const addToCart = async (req, res) => {
         `Only ${sizeData.quantity} item(s) available in stock for this size`
       );
     }
+
     let cart = await Cart.findOne({ customerId, storeId });
-    
     if (!cart) {
       cart = await Cart.create({ customerId, storeId });
     }
 
-    let cartProduct = await CartProduct.findOne({
+    const cartProduct = await CartProduct.findOne({
       cartId: cart._id,
       productId,
-      sizeId
+      sizeId,
     });
 
     if (cartProduct) {
-      return sendResponse(res, 400, false, `Product is already exists in you're cart.`)
-      // const newQty = cartProduct.quantity + quantity;
-
-      // if (newQty <= 0) {
-      //   await CartProduct.findByIdAndDelete(cartProduct._id);
-      //   return sendResponse(res, 200, true, 'Item removed from cart');
-      // }
-
-      // cartProduct.quantity = newQty;
-      // await cartProduct.save();
-      // return sendResponse(res, 200, true, 'Cart item quantity updated');
-
-    } else {
-      if (quantity <= 0) {
-        return sendResponse(res, 400, false, 'Quantity must be greater than 0');
-      }
-
-      await CartProduct.create({ cartId: cart._id, productId, sizeId, quantity });
-      return sendResponse(res, 201, true, 'Item added to cart');
+      return sendResponse(
+        res,
+        400,
+        false,
+        `Product already exists in your cart.`
+      );
     }
 
+    if (quantity <= 0) {
+      return sendResponse(res, 400, false, "Quantity must be greater than 0");
+    }
+
+    await CartProduct.create({ cartId: cart._id, productId, sizeId, quantity });
+
+    // 🔁 Inline updateCartTotals function
+    await calculateAndUpdateCartTotals(cart._id);
+
+    return sendResponse(res, 201, true, "Item added to cart");
   } catch (error) {
-    return sendResponse(res, 500, false, 'Error adding to cart', error.message);
+    return sendResponse(res, 500, false, "Error adding to cart", error.message);
   }
 };
 
@@ -79,15 +83,15 @@ export const updateCartProduct = async (req, res) => {
       return sendResponse(res, 400, false, "Missing or invalid fields");
     }
 
-    const sizeData = await ProductSize.findOne({ _id: sizeId, isDeleted: false });
+    const sizeData = await ProductSize.findOne({
+      _id: sizeId,
+      isDeleted: false,
+    });
 
     if (!sizeData) {
       return sendResponse(res, 404, false, "Size not found");
     }
 
-    /**
-     * check available stock
-     */
     if (quantity > sizeData.quantity) {
       return sendResponse(
         res,
@@ -112,13 +116,23 @@ export const updateCartProduct = async (req, res) => {
       return sendResponse(res, 404, false, "Cart product not found");
     }
 
+    // 🔁 Recalculate totals for the parent cart
+    const cartId = updatedCart.cartId;
+
+    await calculateAndUpdateCartTotals(cartId);
+
     return sendResponse(res, 200, true, "Cart product updated", updatedCart);
   } catch (error) {
     console.error("Update Cart Product Error:", error);
-    return sendResponse(res, 500, false, "Error updating cart product", error.message);
+    return sendResponse(
+      res,
+      500,
+      false,
+      "Error updating cart product",
+      error.message
+    );
   }
 };
-
 
 export const getCart = async (req, res) => {
   try {
@@ -126,7 +140,7 @@ export const getCart = async (req, res) => {
 
     const cart = await Cart.findOne({ customerId });
     if (!cart) {
-      return sendResponse(res, 200, true, 'Cart is empty', []);
+      return sendResponse(res, 200, true, "Cart is empty", []);
     }
 
     const items = await CartProduct.aggregate([
@@ -134,49 +148,68 @@ export const getCart = async (req, res) => {
 
       {
         $lookup: {
-          from: 'products', 
-          localField: 'productId',
-          foreignField: '_id',
-          as: 'product'
-        }
+          from: "products",
+          localField: "productId",
+          foreignField: "_id",
+          as: "product",
+        },
       },
-      { $unwind: '$product' },
-      { $match: { 'product.isDeleted': false } },
+      { $unwind: "$product" },
+      { $match: { "product.isDeleted": false } },
 
       {
         $lookup: {
-          from: 'productsizes', 
-          localField: 'sizeId',
-          foreignField: '_id',
-          as: 'size'
-        }
+          from: "productsizes",
+          localField: "sizeId",
+          foreignField: "_id",
+          as: "size",
+        },
       },
-      { $unwind: '$size' },
-      { $match: { 'size.isDeleted': false } },
+      { $unwind: "$size" },
+      { $match: { "size.isDeleted": false } },
 
       {
         $project: {
           _id: 0,
-          productId: '$product._id',
-          name: '$product.name',
-          image: '$product.primaryImage',
-          size: '$size.size',
+          cartProductId: "$_id",
+          sizeId: "$sizeId",
+          productId: "$product._id",
+          name: "$product.name",
+          image: "$product.primaryImage",
+          size: "$size.size",
           quantity: 1,
-          price: '$product.sellingPrice',
-          description: '$product.description'
-        }
-      }
+          price: "$product.sellingPrice",
+          description: "$product.description",
+          itemTotal: { $multiply: ["$quantity", "$product.sellingPrice"] },
+        },
+      },
     ]);
+
+    // Calculate totals
+    const {
+      sub_total_amount,
+      platform_fee,
+      delivery_fee,
+      cgst,
+      sgst,
+      total_amount,
+    } = await calculateAndUpdateCartTotals(cart._id);
 
     const response = {
       cartId: cart._id,
       storeId: cart.storeId,
-      items
+      items,
+      sub_total_amount,
+      platform_fee,
+      delivery_fee,
+      cgst,
+      sgst,
+      total_amount,
     };
 
-    return sendResponse(res, 200, true, 'Cart fetched successfully', response);
+    return sendResponse(res, 200, true, "Cart fetched successfully", response);
   } catch (err) {
-    return sendResponse(res, 500, false, 'Error fetching cart', err.message);
+    return sendResponse(res, 500, false, "Error fetching cart", err.message);
   }
 };
 
@@ -185,7 +218,7 @@ export const removeCartItems = async (req, res) => {
     const { cartId, cartProductIds } = req.body;
 
     if (!cartId) {
-      return sendResponse(res, 400, false, 'cartId is required');
+      return sendResponse(res, 400, false, "cartId is required");
     }
 
     // 1. Remove selected items or all
@@ -200,52 +233,64 @@ export const removeCartItems = async (req, res) => {
     const remainingItems = await CartProduct.countDocuments({ cartId });
     if (remainingItems === 0) {
       await Cart.findByIdAndDelete(cartId);
-      return sendResponse(res, 200, true, 'All items removed and cart deleted');
+      return sendResponse(res, 200, true, "All items removed and cart deleted");
     }
 
-    return sendResponse(res, 200, true, 'Selected items removed from cart');
+    // 3. Recalculate totals
+    const updatedTotals = await calculateAndUpdateCartTotals(cartId);
+
+    return sendResponse(res, 200, true, "Selected items removed from cart");
   } catch (err) {
-    return sendResponse(res, 500, false, 'Error removing items', err.message);
+    return sendResponse(res, 500, false, "Error removing items", err.message);
   }
 };
 
+const calculateAndUpdateCartTotals = async (cartId) => {
+  const cartProducts = await CartProduct.aggregate([
+    { $match: { cartId } },
+    {
+      $lookup: {
+        from: "products",
+        localField: "productId",
+        foreignField: "_id",
+        as: "product",
+      },
+    },
+    { $unwind: "$product" },
+    { $match: { "product.isDeleted": false } },
+    {
+      $project: {
+        itemTotal: { $multiply: ["$quantity", "$product.sellingPrice"] },
+      },
+    },
+  ]);
 
-// export const checkout = async (req, res) => {
-//   try {
-//     const { customerId, storeId } = req.body;
+  const sub_total_amount = cartProducts.reduce(
+    (sum, item) => sum + item.itemTotal,
+    0
+  );
+  const platform_fee = 10;
+  const delivery_fee = 20;
+  const cgst = sub_total_amount * 0.09;
+  const sgst = sub_total_amount * 0.09;
+  const total_amount =
+    sub_total_amount + platform_fee + delivery_fee + cgst + sgst;
 
-//     const cart = await Cart.findOne({ customerId, storeId });
-//     if (!cart) return sendResponse(res, 400, false, 'No cart found');
+  await Cart.findByIdAndUpdate(cartId, {
+    sub_total_amount,
+    platform_fee,
+    delivery_fee,
+    cgst,
+    sgst,
+    total_amount,
+  });
 
-//     const cartItems = await CartProduct.find({ cartId: cart._id });
-//     if (cartItems.length === 0)
-//       return sendResponse(res, 400, false, 'Cart is empty');
-
-//     let total = 0;
-//     const items = await Promise.all(cartItems.map(async item => {
-//       const product = await Product.findById(item.productId);
-//       const price = product.price;
-//       total += price * item.quantity;
-//       return {
-//         productId: item.productId,
-//         sizeId: item.sizeId,
-//         quantity: item.quantity
-//       };
-//     }));
-
-//     const order = await Order.create({
-//       customerId,
-//       storeId,
-//       items,
-//       totalAmount: total,
-//       status: 'pending',
-//       createdAt: new Date()
-//     });
-
-//     await CartProduct.deleteMany({ cartId: cart._id });
-
-//     return sendResponse(res, 201, true, 'Order placed successfully', order);
-//   } catch (err) {
-//     return sendResponse(res, 500, false, 'Checkout failed', err.message);
-//   }
-// };
+  return {
+    sub_total_amount,
+    platform_fee,
+    delivery_fee,
+    cgst,
+    sgst,
+    total_amount,
+  };
+};
