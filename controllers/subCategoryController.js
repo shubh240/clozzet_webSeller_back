@@ -156,7 +156,7 @@ export const updateSellerSubCategory = async (req, res) => {
     return sendResponse(res, 200, true, "SellerSubCategory updated successfully.", updatedSubCategory);
   } catch (error) {
     console.error("Update SellerSubCategory error:", error);
-    return sendResponse(res, 500, false, error: error.message);
+    return sendResponse(res, 500, false, error.message);
   }
 };
 
