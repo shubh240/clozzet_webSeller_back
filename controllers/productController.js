@@ -821,6 +821,6 @@ export const universalProductList = async (req, res) => {
     });
   } catch (error) {
     console.error("Universal Product List Error:", error);
-    return sendResponse(res, 500, false, "Server error", error.message);
+    return sendResponse(res, 500, false,error.message);
   }
 };

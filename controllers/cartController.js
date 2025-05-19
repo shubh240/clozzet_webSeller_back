@@ -3,6 +3,7 @@ import { sendResponse } from "../common/index.js";
 import { CartProduct } from "../models/cartProduct.model.js";
 import { Product } from "../models/product.model.js";
 import { ProductSize } from "../models/productSize.model.js";
+import { StoreInfo } from "../models/sellerStoreInfo.model.js";
 
 export const addToCart = async (req, res) => {
   try {
@@ -40,9 +41,16 @@ export const addToCart = async (req, res) => {
       );
     }
 
+    const store = await StoreInfo.findOne({ _id: storeId, is_deleted: false });
+    if (!store) {
+      return sendResponse(res, 404, false, "Store not found");
+    }
+
+    const sellerId = store.sellerAuthId;
+
     let cart = await Cart.findOne({ customerId, storeId });
     if (!cart) {
-      cart = await Cart.create({ customerId, storeId });
+      cart = await Cart.create({ customerId, storeId,sellerId });
     }
 
     const cartProduct = await CartProduct.findOne({
@@ -71,7 +79,7 @@ export const addToCart = async (req, res) => {
 
     return sendResponse(res, 201, true, "Item added to cart");
   } catch (error) {
-    return sendResponse(res, 500, false, "Error adding to cart", error.message);
+    return sendResponse(res, 500, false, error.message);
   }
 };
 
@@ -128,7 +136,6 @@ export const updateCartProduct = async (req, res) => {
       res,
       500,
       false,
-      "Error updating cart product",
       error.message
     );
   }
@@ -198,6 +205,7 @@ export const getCart = async (req, res) => {
     const response = {
       cartId: cart._id,
       storeId: cart.storeId,
+      sellerId : cart.sellerId,
       items,
       sub_total_amount,
       platform_fee,
@@ -209,7 +217,7 @@ export const getCart = async (req, res) => {
 
     return sendResponse(res, 200, true, "Cart fetched successfully", response);
   } catch (err) {
-    return sendResponse(res, 500, false, "Error fetching cart", err.message);
+    return sendResponse(res, 500, false, err.message);
   }
 };
 
@@ -241,7 +249,7 @@ export const removeCartItems = async (req, res) => {
 
     return sendResponse(res, 200, true, "Selected items removed from cart");
   } catch (err) {
-    return sendResponse(res, 500, false, "Error removing items", err.message);
+    return sendResponse(res, 500, false, err.message);
   }
 };
 

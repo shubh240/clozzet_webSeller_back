@@ -52,7 +52,7 @@ export const createSellerSubCategory = async (req, res) => {
     return sendResponse(res, 201, true, "Seller SubCategory created", saved);
   } catch (error) {
     console.error("Create SellerSubCategory error:", error);
-    return sendResponse(res, 500, false, "Internal server error", { error: error.message });
+    return sendResponse(res, 500, false, error.message);
   }
 };
 
@@ -102,7 +102,7 @@ export const getSellerSubCategories = async (req, res) => {
     return sendResponse(res, 200, true, "Seller SubCategories fetched", result);
   } catch (error) {
     console.error("Get SellerSubCategories error:", error);
-    return sendResponse(res, 500, false, "Internal server error", { error: error.message });
+    return sendResponse(res, 500, false, error.message);
   }
 };
 
@@ -156,7 +156,7 @@ export const updateSellerSubCategory = async (req, res) => {
     return sendResponse(res, 200, true, "SellerSubCategory updated successfully.", updatedSubCategory);
   } catch (error) {
     console.error("Update SellerSubCategory error:", error);
-    return sendResponse(res, 500, false, "Internal server error.", { error: error.message });
+    return sendResponse(res, 500, false, error.message);
   }
 };
 
@@ -178,6 +178,6 @@ export const deleteSellerSubCategory = async (req, res) => {
     return sendResponse(res, 200, true, "Seller SubCategory deleted", result);
   } catch (error) {
     console.error("Delete SellerSubCategory error:", error);
-    return sendResponse(res, 500, false, "Internal server error", { error: error.message });
+    return sendResponse(res, 500, false, error.message);
   }
 };
