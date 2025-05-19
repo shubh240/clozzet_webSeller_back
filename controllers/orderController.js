@@ -21,18 +21,14 @@ import { StoreInfo } from "../models/sellerStoreInfo.model.js";
  */
 export const createOrder = async (req, res) => {
   try {
-    const customerId = req.id;
     const {
-      storeId,
-      sellerId,
+      cartId,
       customerAddressId,
       paymentTypeId, // 1 = COD, 2 = Online
-      currency = "INR",
     } = req.body;
 
     if (
-      !storeId ||
-      !sellerId ||
+      !cartId ||
       !customerAddressId ||
       !paymentTypeId
       ) {
@@ -42,7 +38,7 @@ export const createOrder = async (req, res) => {
     /**
      * Get Cart
      */
-    const cart = await Cart.findOne({ customerId, storeId });
+    const cart = await Cart.findOne({_id:cartId});
     if(!cart) return sendResponse(res, 404, false, 'Cart not found');
 
     /**
@@ -96,9 +92,9 @@ export const createOrder = async (req, res) => {
      */
     const orderNumber = 'ORD-' + Date.now();
     const newOrder = await Order.create({
-      storeId,
-      sellerId,
-      customerId,
+      storeId : cart?.storeId,
+      sellerId:cart?.sellerId,
+      customerId:cart?.customerId,
       customerAddressId,
       paymentTypeId,
       orderNumber,
@@ -108,7 +104,6 @@ export const createOrder = async (req, res) => {
       cgst,
       sgst,
       totalAmount: total_amount,
-      currency,
       paymentStatus: paymentTypeId === 1 ? 'Success' : 'Pending'
     });
 
@@ -137,6 +132,125 @@ export const createOrder = async (req, res) => {
     return sendResponse(res, 500, false, error.message);
   }
 };
+
+// export const createOrderOld = async (req, res) => {
+//   try {
+//     const customerId = req.id;
+//     const {
+//       storeId,
+//       sellerId,
+//       customerAddressId,
+//       paymentTypeId, // 1 = COD, 2 = Online
+//       currency = "INR",
+//     } = req.body;
+
+//     if (
+//       !storeId ||
+//       !sellerId ||
+//       !customerAddressId ||
+//       !paymentTypeId
+//       ) {
+//       return sendResponse(res, 400, false, 'All fileds are required');
+//     }
+
+//     /**
+//      * Get Cart
+//      */
+//     const cart = await Cart.findOne({ customerId, storeId });
+//     if(!cart) return sendResponse(res, 404, false, 'Cart not found');
+
+//     /**
+//      * Get Cart Products
+//      */
+//     const cartProducts = await CartProduct.find({ cartId: cart._id });
+//     if(!cartProducts.length) return sendResponse(res, 404, false, 'Cart is empty');
+
+//     /**
+//      * Calculate Totals using the helper function
+//      */
+//     const {
+//       sub_total_amount,
+//       platform_fee,
+//       delivery_fee,
+//       cgst,
+//       sgst,
+//       total_amount,
+//     } = await calculateAndUpdateCartTotals(cart._id);
+
+//     /**
+//      * Fetch Product Details
+//      */
+//     const orderItems = [];
+//     for(const cp of cartProducts){      
+//       const product = await Product.findById(cp.productId);
+//       if (!product) continue;
+      
+//       const productSize = await ProductSize.findById(cp.sizeId);
+
+//       const amountPerUnit = product.sellingPrice;
+//       const total = amountPerUnit * cp.quantity;
+      
+//       orderItems.push({
+//         productId: cp.productId,
+//         productSizeId: cp.sizeId,
+//         categoryId: product.category,
+//         subcategoryId: product.subcategory,
+//         sku: product.sku,
+//         productName: product.name,
+//         productSize: productSize?.size, 
+//         productImage: product.image,
+//         quantity: cp.quantity,
+//         amountPerUnit: amountPerUnit,
+//         totalAmount: total,
+//       });
+//     }
+
+//     /**
+//      * Create New Order
+//      */
+//     const orderNumber = 'ORD-' + Date.now();
+//     const newOrder = await Order.create({
+//       storeId,
+//       sellerId,
+//       customerId,
+//       customerAddressId,
+//       paymentTypeId,
+//       orderNumber,
+//       subTotalAmount: sub_total_amount,
+//       platformFee: platform_fee,
+//       deliveryFee: delivery_fee,
+//       cgst,
+//       sgst,
+//       totalAmount: total_amount,
+//       currency,
+//       paymentStatus: paymentTypeId === 1 ? 'Success' : 'Pending'
+//     });
+
+//     const itemsToInsert = orderItems.map(item => ({
+//         ...item,
+//         orderId: newOrder._id,
+//     }));
+
+//     await OrderItem.insertMany(itemsToInsert);
+
+//     /**
+//      * Clear Cart
+//      */
+//     await CartProduct.deleteMany({ cartId: cart._id });
+//     await Cart.findByIdAndDelete({ _id: cart._id });
+
+//     const data = {
+//       orderId: newOrder._id,
+//       orderNumber: newOrder.orderNumber,
+//       paymentTypeId,
+//       totalAmount: newOrder.totalAmount
+//     }
+//     return sendResponse(res, 201, true, 'Order created successfully',data);
+//   } catch (error) {
+//     console.error("Create Order Error:", error.message);
+//     return sendResponse(res, 500, false, error.message);
+//   }
+// };
 
 /**
  * 

@@ -34,7 +34,7 @@ export const createSellerCategory = async (req, res) => {
     return sendResponse(res, 201, true, "Seller category created successfully", savedEntry);
   } catch (error) {
     console.error("Create SellerCategory error:", error);
-    return sendResponse(res, 500, false, "Internal server error", { error: error.message });
+    return sendResponse(res, 500, false, error.message);
   }
 };
 
@@ -96,7 +96,7 @@ export const getSellerCategories = async (req, res) => {
     return sendResponse(res, 200, true, "Seller categories fetched", data);
   } catch (error) {
     console.error("Get SellerCategories error:", error);
-    return sendResponse(res, 500, false, "Internal server error", { error: error.message });
+    return sendResponse(res, 500, false, error.message);
   }
 };
 
@@ -119,7 +119,7 @@ export const updateSellerCategory = async (req, res) => {
     return sendResponse(res, 200, true, "Seller category updated", updatedEntry);
   } catch (error) {
     console.error("Update SellerCategory error:", error);
-    return sendResponse(res, 500, false, "Internal server error", { error: error.message });
+    return sendResponse(res, 500, false,error.message);
   }
 };
 
@@ -141,6 +141,6 @@ export const deleteSellerCategory = async (req, res) => {
     return sendResponse(res, 200, true, "Seller category deleted");
   } catch (error) {
     console.error("Delete SellerCategory error:", error);
-    return sendResponse(res, 500, false, "Internal server error", { error: error.message });
+    return sendResponse(res, 500, false,error.message);
   }
 };
