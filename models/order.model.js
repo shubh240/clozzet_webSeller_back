@@ -23,7 +23,7 @@ const orderSchema = new mongoose.Schema(
       required: true,
     },
     paymentTypeId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Number,
       ref: "PaymentType",
       required: true,
     },
@@ -37,8 +37,8 @@ const orderSchema = new mongoose.Schema(
     },
     paymentStatus: {
       type: String,
-      // enum: ["pending", "success", "failed"],
-      default: "pending",
+      // enum: ["Pending", "Success", "Failed"],
+      default: "Pending",
     },
     paymentError: {
       type: String,
@@ -95,7 +95,7 @@ const orderSchema = new mongoose.Schema(
     },
     refundStatus: {
       type: String,
-      // enum: ["pending", "completed", "failed", null],
+      // enum: ["Pending", "Success", "Failed",null],
       default: null,
     },
   },

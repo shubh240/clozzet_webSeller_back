@@ -1,18 +1,19 @@
 import express from "express";
 import {
-  addOrder,
-  getAllOrders,
-  editOrder,
-  deleteOrder,
+  createOrder,
+  createRazorpayOrder,
+  verifyPayment,
+  createShipment
 } from "../controllers/orderController.js";
 import isUserAuthenticated from "../middleware/isUserAuthenticated.js";
 
 
 const router = express.Router();
 
-router.post("/add", isUserAuthenticated, addOrder); 
-router.get("/all", isUserAuthenticated, getAllOrders); 
-router.put("/edit/:id",  isUserAuthenticated, editOrder); 
-router.delete("/delete/:id",  isUserAuthenticated, deleteOrder); 
+router.post("/create-order", isUserAuthenticated, createOrder);
+router.post("/create-razorpay-order", isUserAuthenticated, createRazorpayOrder);
+router.post("/verify-payment", isUserAuthenticated, verifyPayment);
+router.post("/create-shipment", isUserAuthenticated, createShipment);
+
 
 export default router;
