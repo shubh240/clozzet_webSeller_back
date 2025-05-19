@@ -245,7 +245,7 @@ export const removeCartItems = async (req, res) => {
   }
 };
 
-const calculateAndUpdateCartTotals = async (cartId) => {
+export const calculateAndUpdateCartTotals = async (cartId) => {
   const cartProducts = await CartProduct.aggregate([
     { $match: { cartId } },
     {

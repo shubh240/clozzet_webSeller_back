@@ -1,149 +1,287 @@
 import { Order } from "../models/order.model.js";
+import { OrderItem } from "../models/orderItems.model.js";
+import { Cart } from "../models/cart.model.js";
+import { CartProduct } from "../models/cartProduct.model.js";
 import { Product } from "../models/product.model.js";
+import { ProductSize } from "../models/productSize.model.js";
+import { CustomerAddress } from "../models/customerAddres.model.js";
+import { Shipment } from "../models/shipment.model.js";
 import { v4 as uuidv4 } from "uuid";
+import { sendResponse } from "../common/index.js";
+import {calculateAndUpdateCartTotals} from "./cartController.js"
+import { ShipmentProvider } from '../models/shipmentProvider.model.js';
+import { createShiprocketShipment } from "../provider/shiprocket.js";
+import { createPorterShipment } from "../provider/porter.js";
+import { StoreInfo } from "../models/sellerStoreInfo.model.js";
 
-// Create an order
-export const addOrder = async (req, res) => {
+/**
+ * 
+ * Create an order
+ *  
+ */
+export const createOrder = async (req, res) => {
   try {
-    const { productId, quantity, paymentMethod, deliveryAddress } = req.body;
+    const customerId = req.id;
+    const {
+      storeId,
+      sellerId,
+      customerAddressId,
+      paymentTypeId, // 1 = COD, 2 = Online
+      currency = "INR",
+    } = req.body;
 
-    if (!productId || !quantity || !paymentMethod || !deliveryAddress) {
-      return res.status(400).json({ message: "All fields are required" });
+    if (
+      !storeId ||
+      !sellerId ||
+      !customerAddressId ||
+      !paymentTypeId
+      ) {
+      return sendResponse(res, 400, false, 'All fileds are required');
     }
 
-    const customerId = req.id; // from JWT middleware
+    /**
+     * Get Cart
+     */
+    const cart = await Cart.findOne({ customerId, storeId });
+    if(!cart) return sendResponse(res, 404, false, 'Cart not found');
 
-    const product = await Product.findById(productId);
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
+    /**
+     * Get Cart Products
+     */
+    const cartProducts = await CartProduct.find({ cartId: cart._id });
+    if(!cartProducts.length) return sendResponse(res, 404, false, 'Cart is empty');
+
+    /**
+     * Calculate Totals using the helper function
+     */
+    const {
+      sub_total_amount,
+      platform_fee,
+      delivery_fee,
+      cgst,
+      sgst,
+      total_amount,
+    } = await calculateAndUpdateCartTotals(cart._id);
+
+    /**
+     * Fetch Product Details
+     */
+    const orderItems = [];
+    for(const cp of cartProducts){      
+      const product = await Product.findById(cp.productId);
+      if (!product) continue;
+      
+      const productSize = await ProductSize.findById(cp.sizeId);
+
+      const amountPerUnit = product.sellingPrice;
+      const total = amountPerUnit * cp.quantity;
+      
+      orderItems.push({
+        productId: cp.productId,
+        productSizeId: cp.sizeId,
+        categoryId: product.category,
+        subcategoryId: product.subcategory,
+        sku: product.sku,
+        productName: product.name,
+        productSize: productSize?.size, 
+        productImage: product.image,
+        quantity: cp.quantity,
+        amountPerUnit: amountPerUnit,
+        totalAmount: total,
+      });
     }
 
-    const price = product.sellingPrice;
-    const sellerId = product.userId;
-    const totalAmount = price * quantity;
-
-    const order = await Order.create({
-      orderNumber: uuidv4().slice(0, 8).toUpperCase(),
-      orderStatus: "Confirmed",
-      products: [
-        {
-          productId,
-          quantity,
-          price,
-        },
-      ],
-      totalAmount,
-      paymentStatus: paymentMethod === "COD" ? "Pending" : "Paid",
-      paymentMethod,
-      deliveryAddress,
+    /**
+     * Create New Order
+     */
+    const orderNumber = 'ORD-' + Date.now();
+    const newOrder = await Order.create({
+      storeId,
       sellerId,
       customerId,
+      customerAddressId,
+      paymentTypeId,
+      orderNumber,
+      subTotalAmount: sub_total_amount,
+      platformFee: platform_fee,
+      deliveryFee: delivery_fee,
+      cgst,
+      sgst,
+      totalAmount: total_amount,
+      currency,
+      paymentStatus: paymentTypeId === 1 ? 'Success' : 'Pending'
     });
 
-    return res.status(201).json({
-      message: "Order placed successfully",
-      order,
-    });
+    const itemsToInsert = orderItems.map(item => ({
+        ...item,
+        orderId: newOrder._id,
+    }));
+
+    await OrderItem.insertMany(itemsToInsert);
+
+    /**
+     * Clear Cart
+     */
+    await CartProduct.deleteMany({ cartId: cart._id });
+    await Cart.findByIdAndDelete({ _id: cart._id });
+
+    const data = {
+      orderId: newOrder._id,
+      orderNumber: newOrder.orderNumber,
+      paymentTypeId,
+      totalAmount: newOrder.totalAmount
+    }
+    return sendResponse(res, 201, true, 'Order created successfully',data);
   } catch (error) {
     console.error("Create Order Error:", error.message);
-    return res.status(500).json({ message: error.message });
+    return sendResponse(res, 500, false, error.message);
   }
 };
 
-// Get All Items API
-export const getAllOrders = async (req, res) => {
+/**
+ * 
+ * Razorpay Order Creation (for Online Payments)
+ *  
+ */
+export const createRazorpayOrder = async(req,res)=>{
   try {
-    const sellerId = req.id; // Or wherever you store the seller's ID
-   console.log(`sellerId: ${sellerId}`);
-    // Step 1: Fetch all orders with populated products
-    const allOrders = await Order.find()
-      .populate("products.productId") // Populate productId inside products array
-      .populate("customerId", "firstName lastName email") // Populate customer info
-      .populate("sellerId", "firstName lastName email") // Populate seller info
-      .lean();
+    const { orderId } = req.body;
+    if(!orderId) return sendResponse(res, 400, false, 'orderId is required');
 
-      console.log(`allOrders: ${allOrders}`);
+    const order = await Order.findById(orderId);
+    if (!order) return sendResponse(res, 404, false, 'Order not found');
+    if(order.paymentTypeId !== 2) return sendResponse(res, 400, false, 'Not an online payment order');
 
-    // Step 2: Filter orders that include at least one product of this seller
-    const filteredOrders = allOrders.filter((order) =>
-      order.products.some((p) => p.productId?.userId?.toString() === sellerId)
-    );
-   console.log(`filteredOrders: ${filteredOrders}`);
-    return res.status(200).json({
-      success: true,
-      items: filteredOrders,
-      message: "fetching orders.",
-      
-    });
+    const options = {
+      amount: Math.round(order.totalAmount * 100), // Razorpay needs amount in paisa
+      currency: order.currency || 'INR',
+      receipt: order.orderNumber,
+      payment_capture: 1,   //Auto-capture enabled
+    };
+
+    const rzpOrder = await razorpay.orders.create(options);
+
+    const data = {
+      razorpayOrderId: rzpOrder.id,
+      amount: options.amount,
+      currency: options.currency,
+      key: process.env.RAZORPAY_KEY_ID,
+      orderId: order._id,
+    }
+    return sendResponse(res, 200, true, 'Razorpay Order created successfully',data);
+
   } catch (error) {
-    console.error(`Get all orders error: ${error}`);
-    res.status(500).json({
-      message: "Error fetching orders.",
-      success: false,
-    });
+    console.error('Razorpay order error:', error.message);
+    return sendResponse(res, 500, false, error.message);
   }
-};
+}
 
-
-// Edit Item API
-export const editOrder = async (req, res) => {
+/**
+ * 
+ * Razorpay Payment Verification
+ *  
+ */
+export const verifyPayment = async(req,res)=>{
   try {
-    const { id } = req.params;
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+      orderId, // our local DB order _id
+    } = req.body;
 
-    const updateData = req.body;
-    // console.log(`Update data is ${updateData}`)
-
-    // Find and update item by ID
-    const updatedOrder = await Order.findByIdAndUpdate(id, updateData, {
-      new: true, // Return updated item
-      runValidators: true, // Run validators on update
-    });
-
-    if (!updatedOrder) {
-      return res.status(404).json({
-        message: "Order not found.",
-        success: false,
-      });
+    if(!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !orderId){
+      return sendResponse(res, 400, false, 'All fields are required');
     }
 
-    return res.status(200).json({
-      message: "Order updated successfully.",
-      success: true,
-      updatedOrder,
+    const body = `${razorpay_order_id}|${razorpay_payment_id}`;
+    const expectedSignature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+      .update(body.toString())
+      .digest('hex');
+
+    if (expectedSignature !== razorpay_signature) return sendResponse(res, 400, false, 'Payment verification failed');
+
+    /**
+     * Update order as paid
+     */
+    await Order.findByIdAndUpdate(orderId, {
+      transactionId: razorpay_payment_id,
+      paymentStatus: 'Success',
+      paymentError: ''
     });
+
+    return sendResponse(res, 200, true, 'Payment verified successfully');
   } catch (error) {
-    console.error(`Edit Item error: ${error}`);
-    res.status(500).json({
-      message: "Error updating item.",
-      success: false,
-    });
+    console.error('Razorpay verification error:', error.message);
+    return sendResponse(res, 500, false, error.message);
   }
-};
+}
 
-// Delete Item API
-export const deleteOrder = async (req, res) => {
+/**
+ * 
+ * Create Shipment
+ *  
+ */
+export const createShipment = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { orderId } = req.body;
+    if (!orderId) return sendResponse(res, 400, false, 'Order Id is required');
 
-    const deletedOrder = await Order.findByIdAndDelete(id);
+    const order = await Order.findById(orderId);
+    if (!order) return sendResponse(res, 404, false, 'Order not found');
+    
+    const store = await StoreInfo.findById(order.storeId);
+    const customerAddress = await CustomerAddress.findById(order.customerAddressId);
 
-    if (!deletedOrder) {
-      return res.status(404).json({
-        message: "Order not found.",
-        success: false,
-      });
+    if (!store || !customerAddress) {
+      return sendResponse(res, 400, false, 'Missing address info');
     }
 
-    return res.status(200).json({
-      message: "Order deleted successfully.",
-      success: true,
-      deletedOrder,
+    const shipmentProviderName = order.paymentTypeId === 1 ? 'Shiprocket' : 'Porter';
+    const shipmentProvider = await ShipmentProvider.findOne({ name: shipmentProviderName });
+
+    if (!shipmentProvider) {
+      return sendResponse(res, 400, false, 'Invalid shipment provider');
+    }
+
+    let shipmentResponse;
+    // if (shipmentProvider.name === 'Shiprocket') {
+    //   shipmentResponse = await createShiprocketShipment(order, store, customerAddress);
+    // } else {
+    //   shipmentResponse = await createPorterShipment(order, store, customerAddress);
+    // }
+
+    const shipment = await Shipment.create({
+      orderId: order._id,
+      shipmentProviderId: shipmentProvider._id,
+      trackingId: shipmentResponse?.tracking_id || shipmentProvider._id,
+      currentStatus: 'Created',
+      pickupStoreName: store.storeName,
+      pickupAddress: store.storeAddress,
+      pickupAddressUrl: store.address_url,
+      pickupPincode: store.pincode,
+      pickupCity: store.city,
+      pickupState: store.state,
+      pickupLat: store.lat,
+      pickupLng: store.lng,
+      dropAddressType: customerAddress.type,
+      dropAddressLine1: customerAddress.address_line_1,
+      dropAddressLine2: customerAddress.address_line_2,
+      dropAddressUrl: customerAddress.address_url,
+      dropLandmark: customerAddress.landmark,
+      dropPincode: customerAddress.pincode,
+      dropCity: customerAddress.city,
+      dropState: customerAddress.state,
+      dropLat: customerAddress.location.coordinates[1],
+      dropLng: customerAddress.location.coordinates[0],
+      shipmentResponse: JSON.stringify(shipmentResponse?.raw),
+      trackingUrl: shipmentResponse?.tracking_url || 'https://app.shiprocket.in/orders/view/123456789'
     });
+
+    return sendResponse(res, 201, true,'Shipment created', shipment);
   } catch (error) {
-    console.error(`Delete order error: ${error}`);
-    res.status(500).json({
-      message: "Error deleting order.",
-      success: false,
-    });
+    console.error('Create Shipment error:', error.message);
+    return sendResponse(res, 500, false, error.message);
   }
 };
