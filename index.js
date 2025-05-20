@@ -19,6 +19,7 @@ import productSizeRoute from "./routes/productSizeRoute.js"
 import cartRoute from "./routes/cartRoute.js"
 import path from "path";
 import { fileURLToPath } from "url";
+import notificationRoutes from "./routes/notificationRoute.js";
 
 import cors from "cors";
 
@@ -73,6 +74,7 @@ app.use("/api/v1/coupon", couponRoute);
 app.use("/api/v1/seller-dashboard", sellerDashboardRoute);
 app.use("/api/v1/category", categoryRoute);
 app.use("/api/v1/subCategory", subCategoryRoute);
+app.use("/api", notificationRoutes);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

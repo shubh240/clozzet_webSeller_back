@@ -100,7 +100,7 @@ export const generateOtp = async (req, res) => {
 
 export const verifyOtp = async (req, res) => {
   try {
-    const { mobileNo, otp,countryCode } = req.body;
+    const { mobileNo, otp,countryCode ,fcmToken } = req.body;
 
     if (!mobileNo || !otp || !countryCode) {
       return sendResponse(res, 400, false, "Mobile number,countryCode and OTP are required");
@@ -139,6 +139,7 @@ export const verifyOtp = async (req, res) => {
     // Update customer as active and store token
     customer.isActive = true;
     customer.token = token;
+    customer.fcmToken = fcmToken;
     await customer.save();
 
     // Delete used OTP

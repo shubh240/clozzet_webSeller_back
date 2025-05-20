@@ -77,7 +77,7 @@ const OTP_EXPIRY_MINUTES = 5;
 
 export const loginseller = async (req, res) => {
   try {
-     const { email, password } = req.body;
+     const { email, password ,fcmToken} = req.body;
     if(!email || !password){
       return sendResponse(res, 400, false, "Email and Password are required");
     }
@@ -92,6 +92,11 @@ export const loginseller = async (req, res) => {
      if (!isMatch) {
       return sendResponse(res, 400, false, "Invalid credentials");
      }
+
+    if (fcmToken) {
+      user.fcmToken = fcmToken;
+      await user.save();
+    }
 
     const tokenData = {
       userId: user._id,
