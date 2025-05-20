@@ -4,12 +4,12 @@ const orderSchema = new mongoose.Schema(
   {
     storeId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Store",
+      ref: "StoreInfo",
       required: true,
     },
     sellerId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Seller",
+      ref: "SellerUserAuth",
       required: true,
     },
     customerId: {
