@@ -35,6 +35,10 @@ const sellerUserAuthSchema = new mongoose.Schema(
         default: null,
       },
     },
+    fcmToken: {
+      type: String,
+      default: null,
+    },
   },
   { timestamps: true }
 );
