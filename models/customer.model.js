@@ -30,6 +30,10 @@ const customerModel = new mongoose.Schema(
     token:{
       type:String
     },
+    fcmToken: {
+      type: String,
+      default: null,
+    },
     isActive: {
       type: Boolean,
       default: false,
