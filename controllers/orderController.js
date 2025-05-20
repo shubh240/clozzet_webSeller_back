@@ -13,6 +13,10 @@ import { ShipmentProvider } from '../models/shipmentProvider.model.js';
 import { createShiprocketShipment } from "../provider/shiprocket.js";
 import { createPorterShipment } from "../provider/porter.js";
 import { StoreInfo } from "../models/sellerStoreInfo.model.js";
+import { Category } from "../models/category.model.js";
+import { Subcategory } from "../models/subCategories.model.js";
+import { Customer } from "../models/customer.model.js";
+import { PaymentType } from "../models/paymentType.model.js";
 
 /**
  * 
@@ -68,6 +72,11 @@ export const createOrder = async (req, res) => {
       if (!product) continue;
       
       const productSize = await ProductSize.findById(cp.sizeId);
+      if (!productSize) continue;
+
+      if (productSize.quantity < cp.quantity) {
+        return sendResponse(res, 400, false, `Insufficient stock for size: ${productSize.size}`);
+      }
 
       const amountPerUnit = product.sellingPrice;
       const total = amountPerUnit * cp.quantity;
@@ -84,6 +93,10 @@ export const createOrder = async (req, res) => {
         quantity: cp.quantity,
         amountPerUnit: amountPerUnit,
         totalAmount: total,
+      });
+
+      await ProductSize.findByIdAndUpdate(productSize._id, {
+        $inc: { quantity: -cp.quantity }
       });
     }
 
@@ -399,3 +412,84 @@ export const createShipment = async (req, res) => {
     return sendResponse(res, 500, false, error.message);
   }
 };
+
+/**
+ * 
+ * Order List
+ *  
+ */
+export const listOrders = async (req, res) => {
+  try {
+    const { page, limit, customerId, sellerId, storeId, search } = req.body;
+    const match = {};
+
+    if (customerId) match.customerId = customerId;
+    if (sellerId) match.sellerId = sellerId;
+    if (storeId) match.storeId = storeId;
+
+    if (search) {
+      match.orderNumber = { $regex: search, $options: "i" };
+    }
+    let total = await Order.countDocuments(match);
+
+    let ordersQuery = Order.find(match)
+      .sort({ createdAt: -1 })
+      .populate({ path: 'storeId', select: 'storeName city state ' })
+      .populate({ path: 'sellerId', select: 'userInfo userAuth.email ' })
+      .populate({ path: 'customerId', select: 'fullName email mobile' })
+      .populate({ path: 'customerAddressId' })
+      .lean();
+
+    // If page & limit are provided, apply pagination
+    if (page && limit) {
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+      ordersQuery = ordersQuery.skip(skip).limit(parseInt(limit));
+    }
+
+    const orders = await ordersQuery;
+
+    if (!orders.length) {
+      return sendResponse(res, 404, false, "No orders found");
+    }
+
+    const ordersWithDetails = await Promise.all(
+      orders.map(async (order) => {
+        const items = await OrderItem.find({ orderId: order._id })
+          .populate({ path: 'categoryId', select: 'name' })
+          .populate({ path: 'subcategoryId', select: 'name' })
+          .populate({ path: 'productId', select: 'name primaryImage sku description sellingPrice' })
+          .lean();
+
+        const enrichedItems = items.map((item) => ({
+          ...item,
+          productImage: item.productId?.image || null,
+          categoryName: item.categoryId?.name || null,
+          subcategoryName: item.subcategoryId?.name || null,
+        }));
+
+        const paymentType = await PaymentType.findOne({
+          indexNumber: order.paymentTypeId,
+          isDeleted: false,
+        }).select("name");
+
+        return {
+          ...order,
+          items: enrichedItems,
+          paymentType: paymentType?.name || "N/A",
+        };
+      })
+    );
+
+    return sendResponse(res, 200, true, "Orders fetched successfully", {
+      ...(page && limit ? { total, page: parseInt(page), limit: parseInt(limit) } : {}),
+      orders: ordersWithDetails,
+    });
+
+  } catch (error) {
+    console.error("List Orders Error:", error.message);
+    return sendResponse(res, 500, false, error.message);
+  }
+};
+
+
+

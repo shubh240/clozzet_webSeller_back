@@ -469,16 +469,34 @@ export const updateAddress = async (req, res) => {
 
 export const deleteAddress = async (req, res) => {
   try {
+    const customerId = req.id;
+
+    const activeCount = await CustomerAddress.countDocuments({
+      customerId,
+      is_deleted: false,
+    });
+
+    if (activeCount <= 1) {
+      return sendResponse(
+        res,
+        403,
+        false,
+        "You must have at least one address. You cannot delete your all address."
+      );
+    }
+
+    // Proceed to soft delete
     const deleted = await CustomerAddress.findOneAndUpdate(
-      { _id: req.params.id, customerId: req.id, is_deleted: false },
+      { _id: req.params.id, customerId, is_deleted: false },
       { is_deleted: true },
       { new: true }
     );
 
     if (!deleted) {
-      return sendResponse(res, 400, false,"Address not found or already deleted");
+      return sendResponse(res, 400, false, "Address not found or already deleted");
     }
-      return sendResponse(res, 200, true,"Address deleted successfully");
+
+    return sendResponse(res, 200, true, "Address deleted successfully");
 
   } catch (error) {
     return sendResponse(res, 500, false, error.message);
