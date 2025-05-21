@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@aws-sdk/client-sns": "^3.812.0",
     "aws-sdk": "^2.1692.0",
     "axios": "^1.8.4",
     "backend": "file:",

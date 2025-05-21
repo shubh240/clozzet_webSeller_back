@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { Otp } from "../models/otp.model.js";
 import crypto from "crypto";
 import AWS from "aws-sdk";
-import { sns } from "../config/awsConfig.js";
+import { sendOtp, sns } from "../config/awsConfig.js";
 import { sendResponse } from "../common/index.js";
 import cloudinary from "../config/cloudinary.js";
 import fs from "fs";
@@ -56,7 +56,7 @@ export const signup = async (req, res) => {
   }
 };
 
-export const generateOtp = async (req, res) => {
+export const generateOtpOld = async (req, res) => {
   try {
     const {countryCode, mobileNo } = req.body;
     if(!mobileNo || !countryCode){
@@ -92,6 +92,47 @@ export const generateOtp = async (req, res) => {
     // await sns.publish({ Message: message, PhoneNumber: formattedNumber }).promise();
     return sendResponse(res, 201, true, "OTP sent to your mobile number.");
 
+  } catch (err) {
+    console.error("OTP Send Error:", err);
+    return sendResponse(res, 500, false, err.message);
+  }
+};
+
+
+export const generateOtp = async (req, res) => {
+  try {
+    const {countryCode, mobileNo } = req.body;
+    if(!mobileNo || !countryCode){
+      return sendResponse(res, 400, false, "Mobile Number and countryCode are required");
+    }
+    const customer = await Customer.findOne({ mobileNo,countryCode });
+
+    if (!customer) {
+      return res.status(404).json({ message: "Customer not found.", success: false });
+    }
+
+    // const otp = crypto.randomInt(100000, 999999).toString();
+    const otp = 1234;
+    const expiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000);
+
+    // Save or update OTP in Otp collection
+    await Otp.findOneAndUpdate(
+      { mobileNo },
+      {
+        otp,
+        otp_type: "signup",
+        expiryDate: expiry,
+      },
+      { upsert: true, new: true }
+    );
+
+    const sendResult = await sendOtp(mobileNo, otp);
+      if (!sendResult.success) {
+      return sendResponse(res, 500, false, "Failed to send OTP");
+    }
+
+    return sendResponse(res, 201, true, "OTP sent to your mobile number.");
+    
   } catch (err) {
     console.error("OTP Send Error:", err);
     return sendResponse(res, 500, false, err.message);

@@ -20,9 +20,7 @@ import cartRoute from "./routes/cartRoute.js"
 import path from "path";
 import { fileURLToPath } from "url";
 import notificationRoutes from "./routes/notificationRoute.js";
-
 import cors from "cors";
-
 
 const app = express();
 

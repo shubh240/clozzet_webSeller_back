@@ -2,12 +2,19 @@ import { SellerUserAuth } from "../models/user.model.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import AWS from "aws-sdk";
-import { sns } from "../config/awsConfig.js";
+import { sendOtp } from "../config/awsConfig.js";
 import { sendResponse } from "../common/index.js";
-
+import AWS from "aws-sdk";
 
 const OTP_EXPIRY_MINUTES = 5;
+
+AWS.config.update({
+  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  region: "us-east-1",
+});
+
+const sns = new AWS.SNS({ apiVersion: "2010-03-31" });
 
 // export const signup = async (req, res) => {
 //   try {
@@ -50,7 +57,7 @@ const OTP_EXPIRY_MINUTES = 5;
 // export const registerSeller = async (req, res) => {
 //   try {
 //     const { firstName, lastName, mobileNo, email, password } = req.body;
-    
+
 //     if(!firstName || !lastName || !mobileNo || !email || !password ){
 //       return res.status(400).json({ message: "All fields are required" });
 //     }
@@ -70,28 +77,28 @@ const OTP_EXPIRY_MINUTES = 5;
 //     res.status(201).json({ message: "Seller registered successfully.", success: true });
 //   } catch (err) {
 //     console.log(err);
-    
+
 //     res.status(500).json({ error: err.message });
 //   }
 // };
 
 export const loginseller = async (req, res) => {
   try {
-     const { email, password ,fcmToken} = req.body;
-    if(!email || !password){
+    const { email, password, fcmToken } = req.body;
+    if (!email || !password) {
       return sendResponse(res, 400, false, "Email and Password are required");
     }
-     const user = await SellerUserAuth.findOne({
-       "userAuth.email": email,
-     });
-     if (!user) {
+    const user = await SellerUserAuth.findOne({
+      "userAuth.email": email,
+    });
+    if (!user) {
       return sendResponse(res, 404, false, "Seller not found");
-     }
+    }
 
-     const isMatch = await bcrypt.compare(password, user.userAuth.password);
-     if (!isMatch) {
+    const isMatch = await bcrypt.compare(password, user.userAuth.password);
+    if (!isMatch) {
       return sendResponse(res, 400, false, "Invalid credentials");
-     }
+    }
 
     if (fcmToken) {
       user.fcmToken = fcmToken;
@@ -117,7 +124,7 @@ export const loginseller = async (req, res) => {
       firstName: user.userInfo.firstName,
       lastName: user.userInfo.lastName,
       email: user.userAuth.email,
-      mobileNo : user.userInfo.mobileNo
+      mobileNo: user.userInfo.mobileNo,
     });
   } catch (error) {
     console.log(`Log in seller error: ${error}`);
@@ -140,7 +147,7 @@ export const generateOtp = async (req, res) => {
     }
 
     // const otp = crypto.randomInt(100000, 999999).toString();
-    const otp = 1234
+    const otp = 1234;
     const otpExpiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000);
 
     seller.userAuth.otp = otp;
@@ -153,22 +160,22 @@ export const generateOtp = async (req, res) => {
 
     const params = {
       Message: `Your OTP is: ${otp}. It is valid for ${OTP_EXPIRY_MINUTES} minutes.`,
-      PhoneNumber: formattedNumber,
+      PhoneNumber: "+916351635713",
     };
 
-    // const snsResult = await sns.publish(params).promise();
-    // console.log("SNS response:", snsResult);
+    const snsResult = await sns.publish(params).promise();
+    console.log("SNS response:", snsResult);
 
     return sendResponse(res, 200, true, "OTP sent to your mobile number", {
       mobileNo,
-      otp
+      otp,
     });
-
   } catch (err) {
     console.error("OTP Send Error:", err);
     return sendResponse(res, 500, false, "Failed to send OTP");
   }
 };
+
 
 // Verify OTP
 export const verifyOtp = async (req, res) => {
@@ -213,18 +220,23 @@ export const verifyOtp = async (req, res) => {
       sameSite: "strict",
     });
 
-    return sendResponse(res, 200, true, "OTP verified and user logged in successfully.", {
-      _id: user._id,
-      firstName: user.userInfo?.firstName,
-      lastName: user.userInfo?.lastName,
-      email: user.userAuth?.email,
-    });
-
+    return sendResponse(
+      res,
+      200,
+      true,
+      "OTP verified and user logged in successfully.",
+      {
+        _id: user._id,
+        firstName: user.userInfo?.firstName,
+        lastName: user.userInfo?.lastName,
+        email: user.userAuth?.email,
+      }
+    );
   } catch (error) {
     console.log("Verify OTP Error:", error);
     return sendResponse(res, 500, false, "Internal server error");
   }
-};  
+};
 
 export const logoutSeller = (req, res) => {
   console.log("Inside log out seller");
