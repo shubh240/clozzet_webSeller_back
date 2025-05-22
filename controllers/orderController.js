@@ -509,7 +509,7 @@ export const getOrderDetails = async (req, res) => {
     const order = await Order.findById(orderId)
       .populate({ path: 'storeId', select: 'storeName city state' })
       .populate({ path: 'sellerId', select: 'userInfo userAuth.email' })
-      .populate({ path: 'customerId', select: 'fullName email mobile' })
+      .populate({ path: 'customerId', select: 'fullName email mobileNo' })
       .populate({ path: 'customerAddressId' })
       .lean();
 
