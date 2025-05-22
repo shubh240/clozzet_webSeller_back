@@ -33,6 +33,8 @@ export const addToCart = async (req, res) => {
     }
 
     if (quantity > sizeData.quantity) {
+      if(sizeData.quantity === 0) return sendResponse(res,400,false,'No stock available for this size');
+      
       return sendResponse(
         res,
         400,

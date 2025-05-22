@@ -6,6 +6,7 @@ import { Product } from "../models/product.model.js";
 import { ProductSize } from "../models/productSize.model.js";
 import { CustomerAddress } from "../models/customerAddres.model.js";
 import { Shipment } from "../models/shipment.model.js";
+import { ShipmentHistory } from "../models/shipmentHistory.model.js";
 import { v4 as uuidv4 } from "uuid";
 import { sendResponse } from "../common/index.js";
 import {calculateAndUpdateCartTotals} from "./cartController.js"
@@ -491,5 +492,76 @@ export const listOrders = async (req, res) => {
   }
 };
 
+/**
+ * 
+ * Get Order Details by ID
+ * 
+ */
+export const getOrderDetails = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    if (!orderId) {
+      return sendResponse(res, 400, false, "Order ID is required");
+    }
+
+    // Find the order
+    const order = await Order.findById(orderId)
+      .populate({ path: 'storeId', select: 'storeName city state' })
+      .populate({ path: 'sellerId', select: 'userInfo userAuth.email' })
+      .populate({ path: 'customerId', select: 'fullName email mobile' })
+      .populate({ path: 'customerAddressId' })
+      .lean();
+
+    if (!order) {
+      return sendResponse(res, 404, false, "Order not found");
+    }
+
+    // Fetch order items
+    const items = await OrderItem.find({ orderId: order._id })
+      .populate({ path: 'categoryId', select: 'name' })
+      .populate({ path: 'subcategoryId', select: 'name' })
+      .populate({
+        path: 'productId',
+        select: 'name primaryImage sku description sellingPrice',
+      })
+      .lean();
+
+    const enrichedItems = items.map((item) => ({
+      ...item,
+      productImage: item.productId?.primaryImage || null,
+      categoryName: item.categoryId?.name || null,
+      subcategoryName: item.subcategoryId?.name || null,
+    }));
+
+    const paymentType = await PaymentType.findOne({
+      indexNumber: order.paymentTypeId,
+      isDeleted: false,
+    }).select("name");
+    
+    let shipment = await Shipment.findOne({ orderId: order._id })
+      .populate({ path: "shipmentProviderId", select: "name indexNumber status" })
+      .lean();
+
+    let shipmentHistory = [];
+    if (shipment?._id) {
+      shipmentHistory = await ShipmentHistory.find({
+        shipmentId: shipment._id,
+      }).sort({ createdAt: -1 });
+    }
+
+    return sendResponse(res, 200, true, "Order details fetched successfully", {
+      ...order,
+      items: enrichedItems,
+      paymentType: paymentType?.name,
+      shipment,
+      shipmentHistory,
+    });
+
+  } catch (error) {
+    console.error("Get Order Details Error:", error.message);
+    return sendResponse(res, 500, false, error.message);
+  }
+};
 
 

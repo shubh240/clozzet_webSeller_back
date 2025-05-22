@@ -1,4 +1,4 @@
-import { SellerUserAuth } from "../models/user.model.js";
+import { SellerUserAuth } from "../models/sellerUserInfo.model.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
@@ -102,7 +102,6 @@ export const loginseller = async (req, res) => {
 
     if (fcmToken) {
       user.fcmToken = fcmToken;
-      await user.save();
     }
 
     const tokenData = {
@@ -112,6 +111,9 @@ export const loginseller = async (req, res) => {
     const token = await jwt.sign(tokenData, process.env.JWT_SECRET_KEY, {
       expiresIn: "1d",
     });
+    user.token = token;
+    await user.save();
+
     res.cookie("token", token, {
       maxAge: 24 * 60 * 60 * 1000,
       httpOnly: true,

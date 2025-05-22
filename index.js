@@ -3,7 +3,6 @@ import dotenv from "dotenv";
 dotenv.config({});
 import cookieParser from "cookie-parser";
 import connectDB from "./config/database.js";
-import verifyRoute from "./routes/verifyRoute.js";
 import userRoute from "./routes/userRoute.js";
 import productRoutes from "./routes/productRoute.js";
 import orderRoute from "./routes/orderRoute.js";
@@ -56,7 +55,6 @@ app.use("/uploads", express.static("uploads"));
 
 // Routes
 
-app.use("/api/v1/auth", verifyRoute);
 app.use("/api/v1/user", userRoute);
 app.use("/api/v1/products", productRoutes);
 app.use("/api/v1/sizeChart", sizeChartRoute);
