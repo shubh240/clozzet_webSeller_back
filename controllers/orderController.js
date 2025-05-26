@@ -373,10 +373,14 @@ export const createShipment = async (req, res) => {
     const order = await Order.findById(orderId);
     if (!order) return sendResponse(res, 404, false, "Order not found");
 
-    const store = await StoreInfo.findById(order.storeId);
-    const customerAddress = await CustomerAddress.findById(
-      order.customerAddressId
-    );
+    const store = await StoreInfo.findById(order.storeId).populate({
+      path: 'sellerAuthId',
+      select: 'userInfo',
+    });
+    const customerAddress = await CustomerAddress.findById(order.customerAddressId).populate({
+      path : 'customerId',
+      select: 'fullName countryCode mobileNo altMobileNo'
+    });
 
     if (!store || !customerAddress) {
       return sendResponse(res, 400, false, "Missing address info");
@@ -391,19 +395,21 @@ export const createShipment = async (req, res) => {
     if (!shipmentProvider) {
       return sendResponse(res, 400, false, "Invalid shipment provider");
     }
+    console.log('shipmentProvider : ',shipmentProvider);
+    
 
     let shipmentResponse;
-    // if (shipmentProvider.name === 'Shiprocket') {
-    //   shipmentResponse = await createShiprocketShipment(order, store, customerAddress);
-    // } else {
-    //   shipmentResponse = await createPorterShipment(order, store, customerAddress);
-    // }
+    if (shipmentProvider.name === 'Shiprocket') {
+      shipmentResponse = await createShiprocketShipment(order, store, customerAddress);
+    } else {
+      shipmentResponse = await createPorterShipment(order, store, customerAddress);
+    }
 
-    shipmentResponse = await createPorterShipment(
-      order,
-      store,
-      customerAddress
-    );
+    // shipmentResponse = await createPorterShipment(
+    //   order,
+    //   store,
+    //   customerAddress
+    // );
 
     const shipment = await Shipment.create({
       orderId: order._id,
