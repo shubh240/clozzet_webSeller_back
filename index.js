@@ -20,10 +20,18 @@ import path from "path";
 import { fileURLToPath } from "url";
 import notificationRoutes from "./routes/notificationRoute.js";
 import cors from "cors";
+import fs from "fs";
+import https from "https";
+
+// SSL options
+// const sslOptions = {
+//   key: fs.readFileSync(path.resolve("./key.pem")),
+//   cert: fs.readFileSync(path.resolve("./cert.pem")),
+// };
 
 const app = express();
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3001;
 
 // middleware
 app.use(express.urlencoded({ extended: true }));
@@ -101,4 +109,19 @@ const startServer = async () => {
 };
 
 startServer();
+
+// const startServer = async () => {
+//   try {
+//     await connectDB();
+
+//     https.createServer(sslOptions, app).listen(PORT, () => {
+//       console.log(`✅ HTTPS Server running on https://localhost:${PORT}`);
+//     });
+//   } catch (error) {
+//     console.error("❌ Failed to start HTTPS server:", error);
+//     process.exit(1);
+//   }
+// };
+
+// startServer();
 

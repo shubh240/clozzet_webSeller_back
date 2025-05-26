@@ -55,63 +55,11 @@ export const createPorterShipment = async (order, store, customerAddress) => {
           lng: customerAddress?.location?.coordinates[0], // lng
           contact_details: {
             name: customerAddress?.customerId?.fullName,
-            phone_number: `${customerAddress?.customerId?.countryCode}+${customerAddress?.customerId?.mobileNo || customerAddress?.customerId?.altMobileNo}` ,
+            phone_number: `${customerAddress?.customerId?.countryCode}${customerAddress?.customerId?.mobileNo || customerAddress?.customerId?.altMobileNo}` ,
           },
         },
       },
     };
-    // const payload2 = {
-    //   request_id: "Porter test UAT_order_0001",
-    //   delivery_instructions: {
-    //     instructions_list: [
-    //       {
-    //         type: "text",
-    //         description: "handle with care",
-    //       },
-    //       {
-    //         type: "text",
-    //         description: "Test order 52",
-    //       },
-    //     ],
-    //   },
-    //   pickup_details: {
-    //     address: {
-    //       apartment_address: "27",
-    //       street_address1: "Sona Towers",
-    //       street_address2: "Krishna Nagar Industrial Area",
-    //       landmark: "Hosur Road",
-    //       city: "Bengaluru",
-    //       state: "Karnataka",
-    //       pincode: "560029",
-    //       country: "India",
-    //       lat: 12.939391726766775,
-    //       lng: 77.62629462844717,
-    //       contact_details: {
-    //         name: "Porter Test User",
-    //         phone_number: "+911234567890",
-    //       },
-    //     },
-    //   },
-    //   drop_details: {
-    //     address: {
-    //       apartment_address: "this is apartment address",
-    //       street_address1: "BTM Layout",
-    //       street_address2: "Another street address",
-    //       landmark: "BTM Layout",
-    //       city: "Bengaluru",
-    //       state: "Karnataka",
-    //       pincode: "560029",
-    //       country: "India",
-    //       lat: 12.9165757,
-    //       lng: 77.6101163,
-    //       contact_details: {
-    //         name: "Porter Test User",
-    //         phone_number: "+911234567890",
-    //       },
-    //     },
-    //   },
-    // };
-
 
     console.log(payload);
     // return ('hi');
@@ -135,10 +83,20 @@ export const createPorterShipment = async (order, store, customerAddress) => {
       raw: JSON.stringify(resData),
     };
   } catch (error) {
-    console.error(
-      "Porter shipment error:",
-      error.response?.data || error.message
-    );
-    throw new Error("Failed to create shipment with Porter");
+    // console.error(
+    //   "Porter shipment error:",
+    //   error.response?.data || error.message
+    // );
+    // throw new Error(error.response?.data);
+    
+    const porterErrorMessage =
+      error?.response?.data?.message || // Porter usually sends message here
+      error?.response?.data?.error ||   // fallback if structured differently
+      error?.message ||                 // generic JS error
+      "Unknown Porter API error";
+
+    console.error("Porter shipment error:", porterErrorMessage);
+
+    throw new Error(porterErrorMessage);
   }
 };
