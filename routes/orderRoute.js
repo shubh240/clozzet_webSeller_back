@@ -5,7 +5,9 @@ import {
   verifyPayment,
   createShipment,
   listOrders,
-  getOrderDetails
+  getOrderDetails,
+  refundPayment,
+  razorpayWebhook
   // generateInvoice
 } from "../controllers/orderController.js";
 import isUserAuthenticated from "../middleware/isUserAuthenticated.js";
@@ -19,8 +21,11 @@ router.get("/order-details/:orderId", isUserAuthenticated, getOrderDetails);
 
 router.post("/create-razorpay-order", isUserAuthenticated, createRazorpayOrder);
 router.post("/verify-payment", isUserAuthenticated, verifyPayment);
+router.post("/refund-payment", isUserAuthenticated, refundPayment);
 
 router.post("/create-shipment", isUserAuthenticated, createShipment);
+
+router.post('/api/razorpay/webhook', express.raw({ type: 'application/json' }), razorpayWebhook);
 
 // router.post("/generate-invoice", isUserAuthenticated, generateInvoice);
 
