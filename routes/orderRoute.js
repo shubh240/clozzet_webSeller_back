@@ -6,6 +6,7 @@ import {
   createShipment,
   listOrders,
   getOrderDetails,
+  refundPayment,
   razorpayWebhook
   // generateInvoice
 } from "../controllers/orderController.js";
@@ -20,6 +21,7 @@ router.get("/order-details/:orderId", isUserAuthenticated, getOrderDetails);
 
 router.post("/create-razorpay-order", isUserAuthenticated, createRazorpayOrder);
 router.post("/verify-payment", isUserAuthenticated, verifyPayment);
+router.post("/refund-payment", isUserAuthenticated, refundPayment);
 
 router.post("/create-shipment", isUserAuthenticated, createShipment);
 

@@ -17,9 +17,13 @@ import { StoreInfo } from "../models/sellerStoreInfo.model.js";
 import { Category } from "../models/category.model.js";
 import { Subcategory } from "../models/subCategories.model.js";
 import { Customer } from "../models/customer.model.js";
+import { Refund } from "../models/refund.model.js";
 import { PaymentType } from "../models/paymentType.model.js";
 import { razorpay } from "../config/razorPay.js";
 import mongoose from 'mongoose';
+import cron from "node-cron"
+import axios from 'axios';
+
 
 /**
  *
@@ -364,6 +368,49 @@ export const verifyPayment = async (req, res) => {
 
 /**
  *
+ * Razorpay Payment Refund
+ *
+ */
+export const refundPayment = async(req,res)=>{
+  try {
+    const { orderId, reason } = req.body;
+
+    const order = await Order.findById(orderId);
+    if (!order || order.isRefunded || !order.transactionId) {
+      return sendResponse(res, 400, false, "Invalid refund request");
+    }
+
+    const refund = await refundPayment(order.transactionId, order.totalAmount, reason);
+
+    // Save refund info
+    const refundRecord = await Refund.create({
+      order_id: order._id,
+      refund_id: refund.id,
+      refund_amount: order.totalAmount,
+      refund_reason: reason,
+      refund_status: refund.status,
+      refund_response: refund,
+    });
+
+    // Update order
+    order.isRefunded = true;
+    order.refundStatus = refund.status;
+    await order.save();
+
+    // Notify customer
+    // await sendEmail(order.customerEmail, 'Refund Processed', `Your refund for order ${order.order_number} has been initiated.`);
+    // await sendSMS(order.customerPhone, `Refund for order ${order.order_number} initiated.`);
+
+      return sendResponse(res, 200, true, refund);
+  } catch (err) {
+    console.error('Refund error:', err);
+    return sendResponse(res, 500, false, "Refund failed");
+  }
+}
+
+
+/**
+ *
  * Create Shipment
  *
  */
@@ -448,6 +495,77 @@ export const createShipment = async (req, res) => {
     return sendResponse(res, 500, false, error.message);
   }
 };
+
+export const trackShipments = async () => {
+  const activeShipments = await Shipment.find({
+    currentStatus: { $nin: ["DELIVERED", "CANCELLED"] },
+  }).populate('shipmentProviderId');
+  console.log('activeShipments',activeShipments);
+  
+  for (const shipment of activeShipments) {
+    try {
+      let trackingData;
+      console.log(typeof(shipment.shipmentProviderId.indexNumber))
+      if (shipment.shipmentProviderId.indexNumber == 2) {
+        // Porter API
+        const response = await axios.get(
+          `${process.env.PORTER_BASE_URL}/v1/orders/track/${shipment.trackingId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${process.env.PORTER_API_KEY}`,
+            },
+          }
+        );
+
+        trackingData = {
+          status: response.data.status,
+          location: response.data.current_location,
+          description: response.data.description,
+        };
+      } else {
+        // Shiprocket API
+        const response = await axios.get(
+          `https://apiv2.shiprocket.in/v1/external/courier/track?awb=${shipment.trackingId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${process.env.SHIPROCKET_TOKEN}`,
+            },
+          }
+        );
+
+        const trackInfo = response.data.tracking_data.track_status;
+        trackingData = {
+          status: trackInfo,
+          location: response.data.tracking_data.current_status_location,
+          description: response.data.tracking_data.etd || "Status update",
+        };
+      }
+
+      if (trackingData) {
+        await Shipment.updateOne(
+          { _id: shipment._id },
+          { currentStatus: trackingData.status }
+        );
+
+        await ShipmentHistory.create({
+          shipmentId: shipment._id,
+          currentStatus: trackingData.status,
+          location: trackingData.location || "Unknown",
+          description: trackingData.description,
+        });
+
+        console.log(`Updated tracking for order: ${shipment.orderId}`);
+      }
+    } catch (err) {
+      console.error(`Tracking failed for shipment ${shipment._id}:`, err.message);
+    }
+  }
+};
+
+cron.schedule('*/30 * * * *', () => {
+  console.log('Running shipment tracking job...');
+  trackShipments();
+});
 
 /**
  *
