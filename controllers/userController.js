@@ -5,6 +5,8 @@ import crypto from "crypto";
 import { sendOtp } from "../config/awsConfig.js";
 import { sendResponse } from "../common/index.js";
 import AWS from "aws-sdk";
+import { StoreInfo } from "../models/sellerStoreInfo.model.js";
+import mongoose from "mongoose";
 
 const OTP_EXPIRY_MINUTES = 5;
 
@@ -95,6 +97,8 @@ export const loginseller = async (req, res) => {
       return sendResponse(res, 404, false, "Seller not found");
     }
 
+    const storeInfo = await StoreInfo.findOne({sellerAuthId : new mongoose.Types.ObjectId(user._id) }).select('_id storeName')
+
     const isMatch = await bcrypt.compare(password, user.userAuth.password);
     if (!isMatch) {
       return sendResponse(res, 400, false, "Invalid credentials");
@@ -127,6 +131,7 @@ export const loginseller = async (req, res) => {
       lastName: user.userInfo.lastName,
       email: user.userAuth.email,
       mobileNo: user.userInfo.mobileNo,
+      store : { storeId : storeInfo._id ,storeName : storeInfo.storeName}
     });
   } catch (error) {
     console.log(`Log in seller error: ${error}`);

@@ -19,8 +19,6 @@ const isUserAuthenticated = async (req, res, next) => {
      * Customer-Seller Token Check
      */
     const customer = await Customer.findById(decoded.userId);
-    console.log(customer);
-    
     const seller = await SellerUserAuth.findById(decoded.userId);
     if(customer) req.id = customer._id;
     if(seller) req.id = seller._id;

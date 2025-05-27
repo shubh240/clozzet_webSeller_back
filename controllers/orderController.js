@@ -18,6 +18,8 @@ import { Category } from "../models/category.model.js";
 import { Subcategory } from "../models/subCategories.model.js";
 import { Customer } from "../models/customer.model.js";
 import { PaymentType } from "../models/paymentType.model.js";
+import { razorpay } from "../config/razorPay.js";
+import mongoose from 'mongoose';
 
 /**
  *
@@ -277,21 +279,22 @@ export const createRazorpayOrder = async (req, res) => {
   try {
     const { orderId } = req.body;
     if (!orderId) return sendResponse(res, 400, false, "orderId is required");
-
+    console.log('orderId',orderId);
+    
     const order = await Order.findById(orderId);
     if (!order) return sendResponse(res, 404, false, "Order not found");
-    if (order.paymentTypeId !== 2)
-      return sendResponse(res, 400, false, "Not an online payment order");
-
+    if (order.paymentTypeId !== 2) return sendResponse(res, 400, false, "Not an online payment order");
+    
     const options = {
-      amount: Math.round(order.totalAmount * 100), // Razorpay needs amount in paisa
-      currency: order.currency || "INR",
-      receipt: order.orderNumber,
+      amount: Math.round(order?.totalAmount * 100), // Razorpay needs amount in paisa
+      currency: order?.currency || "INR",
+      receipt: order?.orderNumber,
       payment_capture: 1, //Auto-capture enabled
     };
 
     const rzpOrder = await razorpay.orders.create(options);
-
+    console.log('rzpOrder :- ?',rzpOrder);
+    
     const data = {
       razorpayOrderId: rzpOrder.id,
       amount: options.amount,
@@ -325,7 +328,6 @@ export const verifyPayment = async (req, res) => {
       razorpay_signature,
       orderId, // our local DB order _id
     } = req.body;
-
     if (
       !razorpay_order_id ||
       !razorpay_payment_id ||
@@ -458,8 +460,8 @@ export const listOrders = async (req, res) => {
     const match = {};
 
     if (customerId) match.customerId = customerId;
-    if (sellerId) match.sellerId = sellerId;
-    if (storeId) match.storeId = storeId;
+    if (sellerId) match.sellerId = new mongoose.Types.ObjectId(sellerId);
+    if (storeId) match.storeId = new mongoose.Types.ObjectId(storeId);
 
     if (search) {
       match.orderNumber = { $regex: search, $options: "i" };
@@ -488,7 +490,7 @@ export const listOrders = async (req, res) => {
 
     const ordersWithDetails = await Promise.all(
       orders.map(async (order) => {
-        const items = await OrderItem.find({ orderId: order._id })
+        const items = await OrderItem.find({ orderId: new mongoose.Types.ObjectId(order._id) })
           .populate({ path: "categoryId", select: "name" })
           .populate({ path: "subcategoryId", select: "name" })
           .populate({
@@ -507,7 +509,7 @@ export const listOrders = async (req, res) => {
         const paymentType = await PaymentType.findOne({
           indexNumber: order.paymentTypeId,
           isDeleted: false,
-        }).select("name");
+        });
 
         return {
           ...order,
@@ -600,5 +602,55 @@ export const getOrderDetails = async (req, res) => {
   } catch (error) {
     console.error("Get Order Details Error:", error.message);
     return sendResponse(res, 500, false, error.message);
+  }
+};
+
+
+/**
+ *
+ * RazorPay web-hook
+ *
+ */
+
+export const razorpayWebhook = async (req, res) => {
+  try {
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+
+    const signature = req.headers['x-razorpay-signature'];
+    const body = JSON.stringify(req.body); // raw body
+
+    const expectedSignature = crypto
+      .createHmac('sha256', webhookSecret)
+      .update(body)
+      .digest('hex');
+
+    if (signature !== expectedSignature) {
+      console.log('Invalid webhook signature');
+      return res.status(400).send('Invalid signature');
+    }
+
+    const event = req.body.event;
+    const payload = req.body.payload;
+
+    if (event === 'payment.captured') {
+      const payment = payload.payment.entity;
+
+      // Find and update your order
+      await Order.findOneAndUpdate(
+        { orderNumber: payment.receipt }, // match using receipt
+        {
+          transactionId: payment.id,
+          paymentStatus: 'Success',
+          paymentError: '',
+        }
+      );
+
+      console.log('Payment verified and order updated');
+    }
+
+    return res.status(200).send('Webhook received');
+  } catch (error) {
+    console.error('Webhook error:', error.message);
+    return res.status(500).send('Internal Server Error');
   }
 };
