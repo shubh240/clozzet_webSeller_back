@@ -17,6 +17,7 @@ import { StoreInfo } from "../models/sellerStoreInfo.model.js";
 import { Category } from "../models/category.model.js";
 import { Subcategory } from "../models/subCategories.model.js";
 import { Customer } from "../models/customer.model.js";
+import { Color } from "../models/color.model.js";
 import { Refund } from "../models/refund.model.js";
 import { PaymentType } from "../models/paymentType.model.js";
 import { razorpay } from "../config/razorPay.js";
@@ -72,7 +73,7 @@ export const createOrder = async (req, res) => {
      */
     const orderItems = [];
     for (const cp of cartProducts) {
-      const product = await Product.findById(cp.productId);
+      const product = await Product.findById(cp.productId).populate("colors");
       if (!product) continue;
 
       const productSize = await ProductSize.findById(cp.sizeId);
@@ -89,7 +90,6 @@ export const createOrder = async (req, res) => {
 
       const amountPerUnit = product.sellingPrice;
       const total = amountPerUnit * cp.quantity;
-
       orderItems.push({
         productId: cp.productId,
         productSizeId: cp.sizeId,
@@ -102,6 +102,7 @@ export const createOrder = async (req, res) => {
         quantity: cp.quantity,
         amountPerUnit: amountPerUnit,
         totalAmount: total,
+        color: product.colors._id
       });
 
       await ProductSize.findByIdAndUpdate(productSize._id, {
@@ -133,7 +134,6 @@ export const createOrder = async (req, res) => {
       ...item,
       orderId: newOrder._id,
     }));
-
     await OrderItem.insertMany(itemsToInsert);
 
     /**
@@ -611,6 +611,7 @@ export const listOrders = async (req, res) => {
         const items = await OrderItem.find({ orderId: new mongoose.Types.ObjectId(order._id) })
           .populate({ path: "categoryId", select: "name" })
           .populate({ path: "subcategoryId", select: "name" })
+          .populate({ path: "color", select: "name image" })
           .populate({
             path: "productId",
             select: "name primaryImage sku description sellingPrice",
@@ -622,6 +623,8 @@ export const listOrders = async (req, res) => {
           productImage: item.productId?.image || null,
           categoryName: item.categoryId?.name || null,
           subcategoryName: item.subcategoryId?.name || null,
+          colorName: item.color?.name || null,
+          colorImage: item.color?.image || null,
         }));
 
         const paymentType = await PaymentType.findOne({
@@ -678,6 +681,7 @@ export const getOrderDetails = async (req, res) => {
     const items = await OrderItem.find({ orderId: order._id })
       .populate({ path: "categoryId", select: "name" })
       .populate({ path: "subcategoryId", select: "name" })
+      .populate({ path: "color", select: "name image" })
       .populate({
         path: "productId",
         select: "name primaryImage sku description sellingPrice",
@@ -689,6 +693,8 @@ export const getOrderDetails = async (req, res) => {
       productImage: item.productId?.primaryImage || null,
       categoryName: item.categoryId?.name || null,
       subcategoryName: item.subcategoryId?.name || null,
+      colorName: item.color?.name || null,
+      colorImage: item.color?.image || null,
     }));
 
     const paymentType = await PaymentType.findOne({
