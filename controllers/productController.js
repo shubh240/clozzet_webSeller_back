@@ -17,6 +17,7 @@ export const createProduct = async (req, res) => {
       originalPrice,
       sizeChart,
       brandName,
+      colors
     } = req.body;
     const sellerId = req.id;
 
@@ -29,11 +30,11 @@ export const createProduct = async (req, res) => {
       !subcategory ||
       !sellingPrice ||
       !brandName ||
-      !sizeChart
+      !sizeChart ||
+      !colors
     ) {
       return sendResponse(res, 400, false, "All fields are required");
     }
-
     // Check for existing SKU
     const existingProduct = await Product.findOne({ sku });
     if (existingProduct) {
@@ -90,6 +91,7 @@ export const createProduct = async (req, res) => {
       sizeChart,
       seller: sellerId,
       primaryImage: primaryImageUrl,
+      colors,
       createdBy: sellerId,
     });
 
@@ -118,7 +120,7 @@ export const createProduct = async (req, res) => {
 };
 export const getProducts = async (req, res) => {
   try {
-    const { search = "", category, brandName, page, limit } = req.query;
+    const { search = "", category, brandName, page, limit,colors  } = req.query;
     const matchStage = {
       seller: new mongoose.Types.ObjectId(req.id),
       isDeleted: false,
@@ -144,6 +146,13 @@ export const getProducts = async (req, res) => {
       });
     }
 
+    if(colors){
+      pipeline.push({
+        $match:{
+          colors : new mongoose.Types.ObjectId(colors)
+        }
+      })
+    }
     // Lookups
     pipeline.push(
       {
@@ -228,6 +237,14 @@ export const getProducts = async (req, res) => {
             },
           ],
           as: "storeInfo",
+        },
+      },
+      {
+        $lookup: {
+          from: "colors",
+          localField: "colors",
+          foreignField: "_id",
+          as: "colors",
         },
       },
       {
@@ -400,6 +417,14 @@ export const getProductById = async (req, res) => {
         },
       },
       {
+        $lookup: {
+          from: "colors",
+          localField: "colors",
+          foreignField: "_id",
+          as: "colors",
+        },
+      },
+      {
         $project: {
           storeInfo: 0,
         },
@@ -429,6 +454,7 @@ export const getProductById = async (req, res) => {
 export const updateProduct = async (req, res) => {
   try {
     const { productId } = req.params;
+
     const {
       name,
       sku,
@@ -439,6 +465,7 @@ export const updateProduct = async (req, res) => {
       originalPrice,
       sizeChart,
       brandName,
+      colors
     } = req.body;
 
     const sellerId = req.id;
@@ -453,17 +480,19 @@ export const updateProduct = async (req, res) => {
     }
 
     const updatedFields = {
-      name,
-      sku,
-      description,
-      category,
-      subcategory,
-      sellingPrice,
-      originalPrice,
-      sizeChart,
-      brandName,
-      updatedBy: sellerId,
+      updatedBy: sellerId
     };
+
+    if (name) updatedFields.name = name;
+    if (sku) updatedFields.sku = sku;
+    if (description) updatedFields.description = description;
+    if (mongoose.isValidObjectId(category)) updatedFields.category = category;
+    if (mongoose.isValidObjectId(subcategory)) updatedFields.subcategory = subcategory;
+    if (sellingPrice != null) updatedFields.sellingPrice = sellingPrice;
+    if (originalPrice != null) updatedFields.originalPrice = originalPrice;
+    if (sizeChart) updatedFields.sizeChart = sizeChart;
+    if (brandName) updatedFields.brandName = brandName;
+    if (colors) updatedFields.colors = colors;
 
     if (req.files && req.files["primaryImage"]) {
       const imagePath = req.files["primaryImage"][0].path;
@@ -486,6 +515,14 @@ export const updateProduct = async (req, res) => {
         productImages.push({ imageUrl: imageResult.secure_url });
         fs.unlinkSync(imagePath);
       }
+    }
+    
+    if (category && !mongoose.isValidObjectId(category)) {
+      return sendResponse(res, 400, false, "Invalid Category ID");
+    }
+
+    if (subcategory && !mongoose.isValidObjectId(subcategory)) {
+      return sendResponse(res, 400, false, "Invalid Subcategory ID");
     }
 
     product = await Product.findByIdAndUpdate(productId, updatedFields, {
@@ -595,6 +632,7 @@ export const universalProductList = async (req, res) => {
       random,
       page,
       limit,
+      colors
     } = req.body;
 
     if (!city) {
@@ -650,6 +688,14 @@ export const universalProductList = async (req, res) => {
         },
       });
     }
+
+    if (colors) {
+    pipeline.push({
+      $match: {
+        colors: new mongoose.Types.ObjectId(colors),
+      },
+    });
+  }
 
     if (minPrice !== undefined && maxPrice !== undefined) {
       pipeline.push({
@@ -726,6 +772,15 @@ export const universalProductList = async (req, res) => {
       },
     });
 
+    pipeline.push({
+      $lookup: {
+        from: "colors",
+        localField: "colors",
+        foreignField: "_id",
+        as: "colors"
+      }
+    });
+    
     pipeline.push({
       $lookup: {
         from: "productsizes",

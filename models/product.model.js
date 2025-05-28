@@ -32,11 +32,10 @@ const ProductSchema = new mongoose.Schema(
       type: String, 
       required: false
     }, 
-    colorId:{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Color",
-      required: true,
-    },   
+    colors: {
+       type: mongoose.Schema.Types.ObjectId,
+       ref: "Color",
+     },
     isDeleted: { type: Boolean, default: false },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,

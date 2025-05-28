@@ -165,7 +165,11 @@ export const getCart = async (req, res) => {
       },
       { $unwind: "$product" },
       { $match: { "product.isDeleted": false } },
-
+      {
+        $addFields: {
+            productColorId: "$product.colors"
+          }
+      },
       {
         $lookup: {
           from: "productsizes",
@@ -178,10 +182,22 @@ export const getCart = async (req, res) => {
       { $match: { "size.isDeleted": false } },
 
       {
+        $lookup: {
+          from: "colors",
+          localField: "productColorId",
+          foreignField: "_id",
+          as: "color",
+        },
+      },
+      { $unwind: { path: "$color", preserveNullAndEmptyArrays: true } },
+      {
         $project: {
           _id: 0,
           cartProductId: "$_id",
           sizeId: "$sizeId",
+          colorId: "$color._id",
+          colorName: "$color.name",
+          colorImage: "$color.image",
           productId: "$product._id",
           name: "$product.name",
           image: "$product.primaryImage",
