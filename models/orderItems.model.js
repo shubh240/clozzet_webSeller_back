@@ -53,6 +53,11 @@ const orderItemSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+    colorId:{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Color",
+      required: true,
+    },
   },
   {
     timestamps: true, 
