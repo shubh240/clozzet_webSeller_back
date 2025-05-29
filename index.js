@@ -10,6 +10,7 @@ import storeRoute from "./routes/storeRoute.js";
 import employeeRoute from "./routes/employeeRoute.js";
 import couponRoute from "./routes/couponRoute.js";
 import customerRoute from "./routes/customerRoute.js";
+import wishlistRoute from "./routes/wishlistRoute.js";
 import categoryRoute from "./routes/categoryRoute.js";
 import sellerDashboardRoute from "./routes/sellerDashboardRoute.js";
 import subCategoryRoute from "./routes/subCategoryRoutes.js";
@@ -68,6 +69,7 @@ app.use("/api/v1/products", productRoutes);
 app.use("/api/v1/sizeChart", sizeChartRoute);
 app.use("/api/v1/productSize", productSizeRoute);
 app.use("/api/v1/customer", customerRoute);
+app.use("/api/v1/customer", wishlistRoute);
 app.use("/api/v1/cart", cartRoute);
 
 
