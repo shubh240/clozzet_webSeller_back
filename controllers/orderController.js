@@ -22,7 +22,6 @@ import { Refund } from "../models/refund.model.js";
 import { PaymentType } from "../models/paymentType.model.js";
 import { razorpay } from "../config/razorPay.js";
 import mongoose from 'mongoose';
-import cron from "node-cron"
 import axios from 'axios';
 
 
@@ -562,10 +561,6 @@ export const trackShipments = async () => {
   }
 };
 
-cron.schedule('*/30 * * * *', () => {
-  console.log('Running shipment tracking job...');
-  trackShipments();
-});
 
 /**
  *
