@@ -307,7 +307,6 @@ export const getProductById = async (req, res) => {
   try {
     const { productId } = req.params;
 
-    // Validate ObjectId string
     if (!mongoose.Types.ObjectId.isValid(productId)) {
       return sendResponse(res, 400, false, "Invalid Product ID");
     }
@@ -390,26 +389,26 @@ export const getProductById = async (req, res) => {
         },
       },
       {
-          $lookup: {
-            from: "storeinfos",
-            let: { sellerId: "$seller" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      { $eq: ["$sellerAuthId", "$$sellerId"] },
-                      { $eq: ["$is_deleted", false] },
-                    ],
-                  },
+        $lookup: {
+          from: "storeinfos",
+          let: { sellerId: "$seller" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$sellerAuthId", "$$sellerId"] },
+                    { $eq: ["$is_deleted", false] },
+                  ],
                 },
               },
-              {
-                $project: { _id: 1 },
-              },
-            ],
-            as: "storeInfo",
-          },
+            },
+            {
+              $project: { _id: 1 },
+            },
+          ],
+          as: "storeInfo",
+        },
       },
       {
         $addFields: {
@@ -422,6 +421,31 @@ export const getProductById = async (req, res) => {
           localField: "colors",
           foreignField: "_id",
           as: "colors",
+        },
+      },
+      {
+        $lookup: {
+          from: "productsizes", 
+          let: { productId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$productId", "$$productId"] },
+                    { $eq: ["$isDeleted", false] },
+                  ],
+                },
+              },
+            },
+            {
+              $project: {
+                size: 1,
+                quantity: 1,
+              },
+            },
+          ],
+          as: "productSizes",
         },
       },
       {
@@ -438,13 +462,7 @@ export const getProductById = async (req, res) => {
       return sendResponse(res, 404, false, "Product not found");
     }
 
-    return sendResponse(
-      res,
-      200,
-      true,
-      "Product fetched successfully",
-      product[0]
-    );
+    return sendResponse(res, 200, true, "Product fetched successfully", product[0]);
   } catch (error) {
     console.error("Get Product By ID Error:", error);
     return sendResponse(res, 500, false, "Error fetching product");
@@ -879,3 +897,145 @@ export const universalProductList = async (req, res) => {
     return sendResponse(res, 500, false,error.message);
   }
 };
+
+export const homePageProductList = async (req, res) => {
+  try {
+    const { page, limit } = req.query;
+
+    const parsedPage = parseInt(page);
+    const parsedLimit = parseInt(limit);
+
+    const matchStage = {
+      isDeleted: false,
+    };
+
+    const pipeline = [
+      { $match: matchStage },
+      { $sample: { size: 1000000 } },
+      {
+        $lookup: {
+          from: "categories",
+          localField: "category",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+      {
+        $unwind: {
+          path: "$category",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "subcategories",
+          localField: "subcategory",
+          foreignField: "_id",
+          as: "subcategory",
+        },
+      },
+      {
+        $unwind: {
+          path: "$subcategory",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "sizecharts",
+          localField: "sizeChart",
+          foreignField: "_id",
+          as: "sizeChart",
+        },
+      },
+      {
+        $unwind: {
+          path: "$sizeChart",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "productimages",
+          let: { productId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$product", "$$productId"] },
+                    { $eq: ["$isDeleted", false] },
+                  ],
+                },
+              },
+            },
+            { $project: { imageUrl: 1 } },
+          ],
+          as: "images",
+        },
+      },
+      {
+        $lookup: {
+          from: "storeinfos",
+          let: { sellerId: "$seller" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$sellerAuthId", "$$sellerId"] },
+                    { $eq: ["$is_deleted", false] },
+                  ],
+                },
+              },
+            },
+            {
+              $project: { _id: 1 },
+            },
+          ],
+          as: "storeInfo",
+        },
+      },
+      {
+        $lookup: {
+          from: "colors",
+          localField: "colors",
+          foreignField: "_id",
+          as: "colors",
+        },
+      },
+      {
+        $addFields: {
+          storeId: { $arrayElemAt: ["$storeInfo._id", 0] },
+        },
+      },
+      {
+        $project: {
+          storeInfo: 0,
+        },
+      },
+    ];
+
+    const paginatedPipeline = [...pipeline];
+    if (!isNaN(parsedPage) && parsedPage > 0 && !isNaN(parsedLimit) && parsedLimit > 0) {
+      const skip = (parsedPage - 1) * parsedLimit;
+      paginatedPipeline.push({ $skip: skip }, { $limit: parsedLimit });
+    }
+
+    const [products, totalCount] = await Promise.all([
+      Product.aggregate(paginatedPipeline),
+      Product.countDocuments(matchStage),
+    ]);
+
+    return sendResponse(res, 200, true, "Products fetched successfully", {
+      total: totalCount,
+      page: parsedPage || null,
+      limit: parsedLimit || null,
+      products,
+    });
+  } catch (error) {
+    console.error("Home Page Product List Error:", error);
+    return sendResponse(res, 500, false, "Something went wrong");
+  }
+};
+
