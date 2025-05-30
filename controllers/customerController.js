@@ -34,11 +34,6 @@ export const signup = async (req, res) => {
       return sendResponse(res, 400, false, "Customer already exists with this phone number.");
     }
 
-    const existingAltMobile = await Customer.findOne({ altMobileNo });
-    if (existingAltMobile) {
-      return sendResponse(res, 400, false, "Customer already exists with this alternative phone number.");
-    }
-
     // Create new customer
     await Customer.create({
       fullName,
@@ -246,25 +241,9 @@ export const logout = async (req, res) => {
 export const updateProfile = async (req, res) => {
   try {
     const customerId = req.id;
-
-    const {
-      fullName,
-
-      // Address-related
-      addressId,
-      type,
-      address_line_1,
-      address_line_2,
-      landmark,
-      city,
-      state,
-      pincode,
-      address_url,
-      coordinates, // [longitude, latitude]
-    } = req.body;
+    const { fullName } = req.body;
 
     let imageUrl;
-    const parsedCoordinates = [];
 
     // Upload image to Cloudinary
     if (req.files && req.files["image"] && req.files["image"][0]) {
@@ -274,29 +253,10 @@ export const updateProfile = async (req, res) => {
         resource_type: "image",
       });
       imageUrl = imageResult.secure_url;
-      fs.unlinkSync(imagePath);
+      fs.unlinkSync(imagePath); // Remove local file
     }
 
-    // Parse coordinates if provided in string format
-    if (coordinates && typeof coordinates === "string") {
-      try {
-        const coordinatesArray = JSON.parse(coordinates);  // Parse stringified array
-        if (Array.isArray(coordinatesArray) && coordinatesArray.length === 2) {
-          parsedCoordinates.push(parseFloat(coordinatesArray[0]), parseFloat(coordinatesArray[1]));
-        } else {
-          throw new Error("Invalid coordinates format");
-        }
-      } catch (err) {
-        console.error("Invalid coordinates format:", err.message);
-        return sendResponse(res, 400, false, "Invalid coordinates format. Should be an array like [lng, lat]");
-      }
-    } else if (Array.isArray(coordinates) && coordinates.length === 2) {
-      parsedCoordinates.push(parseFloat(coordinates[0]), parseFloat(coordinates[1]));
-    } else {
-      return sendResponse(res, 400, false, "Coordinates must be an array of two numbers.");
-    }
-
-    // Update customer basic profile
+    // Update customer full name and image
     const updatedCustomer = await Customer.findByIdAndUpdate(
       customerId,
       {
@@ -305,51 +265,6 @@ export const updateProfile = async (req, res) => {
       },
       { new: true }
     );
-
-    // Address handling
-    const addressDataPresent = type && address_line_1 && address_line_2 && city && state && pincode && parsedCoordinates.length === 2;
-    console.log(parsedCoordinates);
-
-    if (addressId) {
-      // Update existing address
-      await CustomerAddress.findOneAndUpdate(
-        { _id: addressId, customerId },
-        {
-          ...(type && { type }),
-          ...(address_line_1 && { address_line_1 }),
-          ...(address_line_2 && { address_line_2 }),
-          ...(landmark && { landmark }),
-          ...(city && { city }),
-          ...(state && { state }),
-          ...(pincode && { pincode }),
-          ...(address_url && { address_url }),
-          ...(parsedCoordinates.length === 2 && {
-            location: {
-              type: "Point",
-              coordinates: parsedCoordinates,
-            },
-          }),
-        },
-        { new: true }
-      );
-    } else if (addressDataPresent) {
-      // Create new address
-      await CustomerAddress.create({
-        customerId,
-        type,
-        address_line_1,
-        address_line_2,
-        landmark: landmark || '',
-        city,
-        state,
-        pincode,
-        address_url: address_url || '',
-        location: {
-          type: "Point",
-          coordinates: parsedCoordinates,
-        },
-      });
-    }
 
     return sendResponse(res, 200, true, "Profile updated successfully", {
       customer: updatedCustomer,

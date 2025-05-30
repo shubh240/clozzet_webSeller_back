@@ -17,7 +17,6 @@ const customerModel = new mongoose.Schema(
     },
     altMobileNo: {
       type: Number,
-      unique: true,
     },
     email: {
       type: String,
