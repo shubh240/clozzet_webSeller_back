@@ -56,7 +56,31 @@ const orderItemSchema = new mongoose.Schema(
     color: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Color",
-    }
+    },
+    isCancelled: {
+      type: Boolean,
+      default: false,
+    },
+    cancelledBy: {
+      type: String,
+      // enum: ["customer", "seller", null],
+      default: null,
+    },
+    cancelledReason: {
+      type: String,
+    },
+    cancelledAt: {
+      type: Date,
+    },
+    isRefunded: {
+      type: Boolean,
+      default: false,
+    },
+    refundStatus: {
+      type: String,
+      // enum: ["Pending", "Success", "Failed",null],
+      default: null,
+    },
   },
   {
     timestamps: true, 
