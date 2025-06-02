@@ -189,6 +189,12 @@ export const getCustomerCoupons = async (req, res) => {
       isActive: true,
       validFrom: { $lte: today },
       validTill: { $gte: today },
+      $expr: {
+        $or: [
+          { $eq: ["$usageLimit", 0] },
+          { $lte: ["$currentUsagesCount", "$usageLimit"] }
+        ],
+      },
     }).sort({ createdAt: -1 });
 
     return sendResponse(res, 200, true, "Available coupons fetched", coupons);

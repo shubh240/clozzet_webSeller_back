@@ -9,6 +9,8 @@ const CartSchema = new mongoose.Schema({
   delivery_fee: { type: Number, default: 0 },
   cgst: { type: Number, default: 0 },
   sgst: { type: Number, default: 0 },
+  discountAmount: { type: Number, default: 0 },
+  couponCode: { type: String, default: null }, 
   total_amount: { type: Number, default: 0 }
 }, { timestamps: true });
 

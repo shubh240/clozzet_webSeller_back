@@ -4,6 +4,8 @@ import { CartProduct } from "../models/cartProduct.model.js";
 import { Product } from "../models/product.model.js";
 import { ProductSize } from "../models/productSize.model.js";
 import { StoreInfo } from "../models/sellerStoreInfo.model.js";
+import { Coupon } from "../models/coupon.model.js";
+import mongoose from "mongoose";
 
 export const addToCart = async (req, res) => {
   try {
@@ -319,4 +321,77 @@ export const calculateAndUpdateCartTotals = async (cartId) => {
     sgst,
     total_amount,
   };
+};
+
+/**
+ * Coupon Applying
+ */
+
+export const applyCouponToCart = async (req, res) => {
+  try {
+    const { cartId, couponCode } = req.body;
+    const customerId = req.id;
+
+    if (!cartId || !couponCode) {
+      return sendResponse(res, 400, false, "cartId and couponCode are required");
+    }
+    
+    const cart = await Cart.findOne({ _id: cartId, customerId });
+    if (!cart) {
+      return sendResponse(res, 404, false, "Cart not found");
+    }
+
+    const coupon = await Coupon.findOne({
+      couponCode: couponCode.toUpperCase(),
+      storeId: new mongoose.Types.ObjectId(cart.storeId),
+      is_deleted: false,
+      isActive: true,
+      validFrom: { $lte: new Date() },
+      validTill: { $gte: new Date() },
+    });
+
+    if (!coupon) {
+      return sendResponse(res, 404, false, "Invalid or expired coupon.");
+    }
+
+    if (cart.sub_total_amount < coupon.minOrderAmount) {
+      return sendResponse(
+        res,
+        400,
+        false,
+        `Cart total must be at least ₹${coupon.minOrderAmount} to use this coupon.`
+      );
+    }
+
+    let discount = 0;
+    if (coupon.discountType === "flat") {
+      discount = coupon.discountValue;
+    } else if (coupon.discountType === "percentage") {
+      discount = (cart.sub_total_amount * coupon.discountValue) / 100;
+      if (coupon.maxDiscountAmount && discount > coupon.maxDiscountAmount) {
+        discount = coupon.maxDiscountAmount;
+      }
+    }
+
+    const totalAmountAfterDiscount =
+      cart.sub_total_amount +
+      cart.platform_fee +
+      cart.delivery_fee +
+      cart.cgst +
+      cart.sgst -
+      discount;
+
+    cart.couponCode = coupon.couponCode;
+    cart.discountAmount = discount;
+    cart.total_amount = totalAmountAfterDiscount;
+    await cart.save();
+
+    return sendResponse(res, 200, true, "Coupon applied", {
+      originalTotal: cart.total_amount + discount,
+      discount,
+      finalTotal: totalAmountAfterDiscount,
+    });
+  } catch (error) {
+    return sendResponse(res, 500, false, error.message);
+  }
 };
