@@ -6,20 +6,60 @@ import mongoose from "mongoose";
 export const createCoupon = async (req, res) => {
   try {
     const sellerId = req.id;
-    const { couponCode, discountType, discountValue,minOrderAmount,maxDiscountAmount,usageLimit,usageLimitPerUser, validFrom, validTill } = req.body;
+    const {
+      name,
+      description,
+      couponCode,
+      discountType,
+      discountValue,
+      minOrderAmount,
+      maxDiscountAmount,
+      usageLimit,
+      usageLimitPerUser,
+      validFrom,
+      validTill,
+    } = req.body;
 
-    if (!couponCode || !discountType || !discountValue || !validFrom || !validTill || !minOrderAmount || !usageLimit || !usageLimitPerUser) {
-      return sendResponse(res, 400, false, "All required fields must be filled.");
+    if (
+      !name ||
+      !couponCode ||
+      !discountType ||
+      !discountValue ||
+      !validFrom ||
+      !validTill ||
+      !minOrderAmount ||
+      !usageLimit ||
+      !usageLimitPerUser
+    ) {
+      return sendResponse(
+        res,
+        400,
+        false,
+        "All required fields must be filled."
+      );
     }
 
     if (discountType === "percentage" && !maxDiscountAmount) {
-      return sendResponse(res, 400, false, "maxDiscountAmount is required for percentage coupons.");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "maxDiscountAmount is required for percentage coupons."
+      );
     }
 
     if (!["percentage", "flat"].includes(discountType)) {
-      return sendResponse(res, 400, false, "Invalid discountType. It must be either 'flat' or 'percentage'.");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Invalid discountType. It must be either 'flat' or 'percentage'."
+      );
     }
-    const store = await StoreInfo.findOne({ sellerAuthId: sellerId, is_deleted: false });
+    const store = await StoreInfo.findOne({
+      sellerAuthId: sellerId,
+      is_deleted: false,
+    });
     if (!store) {
       return sendResponse(res, 404, false, "Store not found for this seller.");
     }
@@ -32,12 +72,19 @@ export const createCoupon = async (req, res) => {
     });
 
     if (existingCoupon) {
-      return sendResponse(res, 400, false, "Coupon code already exists for this store.");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Coupon code already exists for this store."
+      );
     }
 
     const newCoupon = new Coupon({
       storeId,
       sellerId,
+      name,
+      description,
       couponCode,
       discountType,
       discountValue,
@@ -50,7 +97,13 @@ export const createCoupon = async (req, res) => {
     });
 
     await newCoupon.save();
-    return sendResponse(res, 201, true, "Coupon created successfully", newCoupon);
+    return sendResponse(
+      res,
+      201,
+      true,
+      "Coupon created successfully",
+      newCoupon
+    );
   } catch (err) {
     console.error("Create Coupon Error:", err);
     return sendResponse(res, 500, false, err.message);
@@ -63,7 +116,7 @@ export const getSellerCoupons = async (req, res) => {
 
     const coupons = await Coupon.find({
       sellerId: new mongoose.Types.ObjectId(sellerId),
-      is_deleted: false
+      is_deleted: false,
     }).sort({ createdAt: -1 });
 
     return sendResponse(res, 200, true, "coupons fetched", coupons);
@@ -72,10 +125,12 @@ export const getSellerCoupons = async (req, res) => {
   }
 };
 
-
 export const getCouponById = async (req, res) => {
   try {
-    const coupon = await Coupon.findOne({ _id: req.params.id, is_deleted: false });
+    const coupon = await Coupon.findOne({
+      _id: req.params.id,
+      is_deleted: false,
+    });
     if (!coupon) {
       return sendResponse(res, 404, false, "Coupon not found");
     }
@@ -107,7 +162,9 @@ export const updateCoupon = async (req, res) => {
 
 export const deleteCoupon = async (req, res) => {
   try {
-    const deleted = await Coupon.findByIdAndUpdate(req.params.id, { is_deleted: true });
+    const deleted = await Coupon.findByIdAndUpdate(req.params.id, {
+      is_deleted: true,
+    });
     if (!deleted) {
       return sendResponse(res, 404, false, "Coupon not found");
     }
@@ -116,7 +173,6 @@ export const deleteCoupon = async (req, res) => {
     return sendResponse(res, 500, false, err.message);
   }
 };
-
 
 export const getCustomerCoupons = async (req, res) => {
   try {
@@ -132,7 +188,7 @@ export const getCustomerCoupons = async (req, res) => {
       is_deleted: false,
       isActive: true,
       validFrom: { $lte: today },
-      validTill: { $gte: today }
+      validTill: { $gte: today },
     }).sort({ createdAt: -1 });
 
     return sendResponse(res, 200, true, "Available coupons fetched", coupons);

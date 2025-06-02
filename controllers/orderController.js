@@ -248,43 +248,48 @@ export const verifyPayment = async (req, res) => {
 
 /**
  *
- * Razorpay Payment Refund
+ * Return Order
  *
  */
-export const refundPayment = async(req,res)=>{
+export const returnOrder = async(req,res)=>{
   try {
-    const { orderId, reason } = req.body;
+    const { orderItemId, reason } = req.body;
 
-    const order = await Order.findById(orderId);
-    if (!order || order.isRefunded || !order.transactionId) {
-      return sendResponse(res, 400, false, "Invalid refund request");
+    if (!orderItemId || !reason) {
+      return sendResponse(res, 400, false, "All fileds are required");
     }
 
-    const refund = await refundPayment(order.transactionId, order.totalAmount, reason);
+    const orderItem = await OrderItem.findById(orderItemId);
 
-    // Save refund info
-    const refundRecord = await Refund.create({
-      order_id: order._id,
-      refund_id: refund.id,
-      refund_amount: order.totalAmount,
-      refund_reason: reason,
-      refund_status: refund.status,
-      refund_response: refund,
-    });
+    if(!orderItem) 
+    {
+      return sendResponse(res, 400,false, 'No order item found');
+    }
+    
+    if(orderItem?.isRefunded)
+    {
+      return sendResponse(res, 400,false, 'Already refunded');
+    }
 
-    // Update order
-    order.isRefunded = true;
-    order.refundStatus = refund.status;
-    await order.save();
+    const order = await Order.findById(orderItem?.orderId);
 
-    // Notify customer
-    // await sendEmail(order.customerEmail, 'Refund Processed', `Your refund for order ${order.order_number} has been initiated.`);
-    // await sendSMS(order.customerPhone, `Refund for order ${order.order_number} initiated.`);
+    if(!order) 
+    {
+      return sendResponse(res, 400,false, 'No order found');
+    }
+    
+    if(order?.paymentStatus != "Success")
+    {
+      return sendResponse(res, 400,false, 'Payment not completed');
+    }
 
-      return sendResponse(res, 200, true, refund);
+    
+
+    return sendResponse(res, 200, true, "Returned successfully");
+
   } catch (err) {
-    console.error('Refund error:', err);
-    return sendResponse(res, 500, false, "Refund failed");
+    console.error('Returned error:', err);
+    return sendResponse(res, 500, false, "Returned failed");
   }
 }
 
@@ -328,17 +333,17 @@ export const createShipment = async (req, res) => {
     
 
     let shipmentResponse;
-    if (shipmentProvider.name === 'Shiprocket') {
-      shipmentResponse = await createShiprocketShipment(order, store, customerAddress);
-    } else {
-      shipmentResponse = await createPorterShipment(order, store, customerAddress);
-    }
+    // if (shipmentProvider.name === 'Shiprocket') {
+    //   shipmentResponse = await createShiprocketShipment(order, store, customerAddress);
+    // } else {
+    //   shipmentResponse = await createPorterShipment(order, store, customerAddress);
+    // }
 
-    // shipmentResponse = await createPorterShipment(
-    //   order,
-    //   store,
-    //   customerAddress
-    // );
+    shipmentResponse = await createPorterShipment(
+      order,
+      store,
+      customerAddress
+    );
 
     const shipment = await Shipment.create({
       orderId: order._id,
@@ -479,7 +484,7 @@ export const listOrders = async (req, res) => {
     const orders = await ordersQuery;
 
     if (!orders.length) {
-      return sendResponse(res, 404, false, "No orders found");
+      return sendResponse(res, 400, false, "No orders found");
     }
 
     const ordersWithDetails = await Promise.all(

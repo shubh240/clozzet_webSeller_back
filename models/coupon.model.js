@@ -16,6 +16,20 @@ const couponSchema = new mongoose.Schema(
       required: true,
     },
 
+    // Name of the coupon
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    // Optional description of the coupon
+    description: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    
     // Unique coupon code to be applied by users (e.g., "WELCOME50")
     couponCode: {
       type: String,

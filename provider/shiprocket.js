@@ -17,7 +17,7 @@ export const getShiprocketToken =  async()=> {
     tokenCache = response.data.token;
     return tokenCache;
   } catch (error) {
-    console.error('Shiprocket token error:', err.response?.data || err.message);
+    console.error('Shiprocket token error:', error.response?.data || error.message);
     throw new Error('Failed to get Shiprocket token');
   }
 }
@@ -71,7 +71,7 @@ export const createShiprocketShipment=  async(order, store, customerAddress)=> {
         };
         
     } catch (error) {
-        console.error('Shiprocket shipment error:', err.response?.data || err.message);
+        console.error('Shiprocket shipment error:', error.response?.data || error.message);
         throw new Error('Failed to create shipment with Shiprocket');   
     }
   }
