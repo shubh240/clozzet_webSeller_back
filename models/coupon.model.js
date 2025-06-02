@@ -74,6 +74,11 @@ const couponSchema = new mongoose.Schema(
       default: 0,
     },
 
+    currentUsagesCount: {
+      type: Number,
+      default: 0,
+    },
+
     validFrom: {
       type: Date,
       required: true,

@@ -23,6 +23,7 @@ import { PaymentType } from "../models/paymentType.model.js";
 import { razorpay } from "../config/razorPay.js";
 import mongoose from 'mongoose';
 import axios from 'axios';
+import { Coupon } from "../models/coupon.model.js";
 
 
 /**
@@ -54,18 +55,6 @@ export const createOrder = async (req, res) => {
     const cartProducts = await CartProduct.find({ cartId: cart._id });
     if (!cartProducts.length)
       return sendResponse(res, 404, false, "Cart is empty");
-
-    /**
-     * Calculate Totals using the helper function
-     */
-    const {
-      sub_total_amount,
-      platform_fee,
-      delivery_fee,
-      cgst,
-      sgst,
-      total_amount,
-    } = await calculateAndUpdateCartTotals(cart._id);
 
     /**
      * Fetch Product Details
@@ -120,12 +109,15 @@ export const createOrder = async (req, res) => {
       customerAddressId,
       paymentTypeId,
       orderNumber,
-      subTotalAmount: sub_total_amount,
-      platformFee: platform_fee,
-      deliveryFee: delivery_fee,
-      cgst,
-      sgst,
-      totalAmount: total_amount,
+      subTotalAmount: cart?.sub_total_amount,
+      platformFee: cart?.platform_fee || 0,
+      deliveryFee: cart?.delivery_fee || 0,
+      couponCode : cart?.couponCode,
+      discountAmount : cart?.discountAmount,
+      cgst : cart?.cgst || 0,
+      sgst : cart?.sgst || 0,
+      sgst : cart?.sgst || 0,
+      totalAmount: cart?.total_amount || 0,
       paymentStatus: paymentTypeId === 1 ? "Success" : "Pending",
     });
 
@@ -134,6 +126,29 @@ export const createOrder = async (req, res) => {
       orderId: newOrder._id,
     }));
     await OrderItem.insertMany(itemsToInsert);
+
+    
+    /**
+     * Handle Coupon Usage Count
+     */
+    if (cart?.couponCode) {
+      const coupon = await Coupon.findOne({
+        couponCode: cart.couponCode,
+        storeId: new mongoose.Types.ObjectId(cart.storeId),
+        is_deleted: false,
+        isActive: true,
+      });
+
+      if (coupon) {
+        if (coupon.usageLimit > 0 && coupon.currentUsagesCount >= coupon.usageLimit) {
+          return sendResponse(res, 400, false, "Coupon usage limit exceeded");
+        }
+
+        await Coupon.findByIdAndUpdate(coupon._id, {
+          $inc: { currentUsagesCount: 1 },
+        });
+      }
+    }
 
     /**
      * Clear Cart
