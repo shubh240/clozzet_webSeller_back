@@ -52,6 +52,12 @@ const couponSchema = new mongoose.Schema(
       required: true,
     },
 
+    imageUrl: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
     // Minimum cart/order amount required to apply this coupon
     minOrderAmount: {
       type: Number,
