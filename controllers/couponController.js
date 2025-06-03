@@ -2,6 +2,8 @@ import { Coupon } from "../models/coupon.model.js";
 import { StoreInfo } from "../models/sellerStoreInfo.model.js";
 import { sendResponse } from "../common/index.js";
 import mongoose from "mongoose";
+import cloudinary from "../config/cloudinary.js";
+import fs from "fs";
 
 export const createCoupon = async (req, res) => {
   try {
@@ -38,6 +40,11 @@ export const createCoupon = async (req, res) => {
         "All required fields must be filled."
       );
     }
+    
+        // ✅ Primary image required check
+        if (!req.files || !req.files["images"]) {
+          return sendResponse(res, 400, false, "Image is required");
+        }
 
     if (discountType === "percentage" && !maxDiscountAmount) {
       return sendResponse(
@@ -80,6 +87,15 @@ export const createCoupon = async (req, res) => {
       );
     }
 
+    // Upload primary image
+    const imagePath = req.files["images"][0].path;
+    const imageResult = await cloudinary.uploader.upload(imagePath, {
+      folder: "uploads/coupon/images",
+      resource_type: "image",
+    });
+    const imageUrl = imageResult.secure_url;
+    fs.unlinkSync(imagePath);
+
     const newCoupon = new Coupon({
       storeId,
       sellerId,
@@ -94,6 +110,7 @@ export const createCoupon = async (req, res) => {
       usageLimitPerUser,
       validFrom,
       validTill,
+      imageUrl
     });
 
     await newCoupon.save();
@@ -143,9 +160,21 @@ export const getCouponById = async (req, res) => {
 export const updateCoupon = async (req, res) => {
   try {
     const { id } = req.params;
+    const updatedFields = { ...req.body };
+
+    if (req.files && req.files["images"]) {
+      const imagePath = req.files["images"][0].path;
+      const imageResult = await cloudinary.uploader.upload(imagePath, {
+        folder: "uploads/coupon/images",
+        resource_type: "image",
+      });
+      updatedFields.image = imageResult.secure_url;
+      fs.unlinkSync(imagePath);
+    }
+
     const updated = await Coupon.findOneAndUpdate(
       { _id: id, is_deleted: false },
-      { $set: req.body },
+      { $set: updatedFields },
       { new: true, runValidators: true }
     );
     if (!updated) {
