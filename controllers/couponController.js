@@ -40,11 +40,11 @@ export const createCoupon = async (req, res) => {
         "All required fields must be filled."
       );
     }
-    
-        // ✅ Primary image required check
-        if (!req.files || !req.files["images"]) {
-          return sendResponse(res, 400, false, "Image is required");
-        }
+
+    // ✅ Primary image required check
+    if (!req.files || !req.files["images"]) {
+      return sendResponse(res, 400, false, "Image is required");
+    }
 
     if (discountType === "percentage" && !maxDiscountAmount) {
       return sendResponse(
@@ -110,7 +110,7 @@ export const createCoupon = async (req, res) => {
       usageLimitPerUser,
       validFrom,
       validTill,
-      imageUrl
+      imageUrl,
     });
 
     await newCoupon.save();
@@ -168,7 +168,7 @@ export const updateCoupon = async (req, res) => {
         folder: "uploads/coupon/images",
         resource_type: "image",
       });
-      updatedFields.image = imageResult.secure_url;
+      updatedFields.imageUrl = imageResult.secure_url;
       fs.unlinkSync(imagePath);
     }
 
@@ -221,7 +221,7 @@ export const getCustomerCoupons = async (req, res) => {
       $expr: {
         $or: [
           { $eq: ["$usageLimit", 0] },
-          { $lte: ["$currentUsagesCount", "$usageLimit"] }
+          { $lte: ["$currentUsagesCount", "$usageLimit"] },
         ],
       },
     }).sort({ createdAt: -1 });
