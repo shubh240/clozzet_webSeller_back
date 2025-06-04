@@ -17,7 +17,7 @@ export const createProduct = async (req, res) => {
       originalPrice,
       sizeChart,
       brandName,
-      colors
+      colors,
     } = req.body;
     const sellerId = req.id;
 
@@ -120,7 +120,7 @@ export const createProduct = async (req, res) => {
 };
 export const getProducts = async (req, res) => {
   try {
-    const { search = "", category, brandName, page, limit,colors  } = req.query;
+    const { search = "", category, brandName, page, limit, colors } = req.query;
     const matchStage = {
       seller: new mongoose.Types.ObjectId(req.id),
       isDeleted: false,
@@ -146,12 +146,12 @@ export const getProducts = async (req, res) => {
       });
     }
 
-    if(colors){
+    if (colors) {
       pipeline.push({
-        $match:{
-          colors : new mongoose.Types.ObjectId(colors)
-        }
-      })
+        $match: {
+          colors: new mongoose.Types.ObjectId(colors),
+        },
+      });
     }
     // Lookups
     pipeline.push(
@@ -233,7 +233,7 @@ export const getProducts = async (req, res) => {
               },
             },
             {
-              $project: { _id: 1 },
+              $project: { _id: 1, storeName: 1 },
             },
           ],
           as: "storeInfo",
@@ -250,6 +250,7 @@ export const getProducts = async (req, res) => {
       {
         $addFields: {
           storeId: { $arrayElemAt: ["$storeInfo._id", 0] },
+          storeName: { $arrayElemAt: ["$storeInfo.storeName", 0] },
         },
       },
       {
@@ -278,7 +279,12 @@ export const getProducts = async (req, res) => {
     // Safe pagination
     const parsedPage = parseInt(page);
     const parsedLimit = parseInt(limit);
-    if (!isNaN(parsedPage) && parsedPage > 0 && !isNaN(parsedLimit) && parsedLimit > 0) {
+    if (
+      !isNaN(parsedPage) &&
+      parsedPage > 0 &&
+      !isNaN(parsedLimit) &&
+      parsedLimit > 0
+    ) {
       const skip = (parsedPage - 1) * parsedLimit;
       pipeline.push({ $skip: skip }, { $limit: parsedLimit });
     }
@@ -301,7 +307,6 @@ export const getProducts = async (req, res) => {
     return sendResponse(res, 500, false, "Error fetching products");
   }
 };
-
 
 export const getProductById = async (req, res) => {
   try {
@@ -404,7 +409,7 @@ export const getProductById = async (req, res) => {
               },
             },
             {
-              $project: { _id: 1 },
+              $project: { _id: 1, storeName: 1 },
             },
           ],
           as: "storeInfo",
@@ -413,6 +418,7 @@ export const getProductById = async (req, res) => {
       {
         $addFields: {
           storeId: { $arrayElemAt: ["$storeInfo._id", 0] },
+          storeName: { $arrayElemAt: ["$storeInfo.storeName", 0] },
         },
       },
       {
@@ -425,7 +431,7 @@ export const getProductById = async (req, res) => {
       },
       {
         $lookup: {
-          from: "productsizes", 
+          from: "productsizes",
           let: { productId: "$_id" },
           pipeline: [
             {
@@ -452,8 +458,7 @@ export const getProductById = async (req, res) => {
         $project: {
           storeInfo: 0,
         },
-      }
-
+      },
     ];
 
     const product = await Product.aggregate(pipeline);
@@ -462,7 +467,13 @@ export const getProductById = async (req, res) => {
       return sendResponse(res, 404, false, "Product not found");
     }
 
-    return sendResponse(res, 200, true, "Product fetched successfully", product[0]);
+    return sendResponse(
+      res,
+      200,
+      true,
+      "Product fetched successfully",
+      product[0]
+    );
   } catch (error) {
     console.error("Get Product By ID Error:", error);
     return sendResponse(res, 500, false, "Error fetching product");
@@ -483,7 +494,7 @@ export const updateProduct = async (req, res) => {
       originalPrice,
       sizeChart,
       brandName,
-      colors
+      colors,
     } = req.body;
 
     const sellerId = req.id;
@@ -498,14 +509,15 @@ export const updateProduct = async (req, res) => {
     }
 
     const updatedFields = {
-      updatedBy: sellerId
+      updatedBy: sellerId,
     };
 
     if (name) updatedFields.name = name;
     if (sku) updatedFields.sku = sku;
     if (description) updatedFields.description = description;
     if (mongoose.isValidObjectId(category)) updatedFields.category = category;
-    if (mongoose.isValidObjectId(subcategory)) updatedFields.subcategory = subcategory;
+    if (mongoose.isValidObjectId(subcategory))
+      updatedFields.subcategory = subcategory;
     if (sellingPrice != null) updatedFields.sellingPrice = sellingPrice;
     if (originalPrice != null) updatedFields.originalPrice = originalPrice;
     if (sizeChart) updatedFields.sizeChart = sizeChart;
@@ -534,7 +546,7 @@ export const updateProduct = async (req, res) => {
         fs.unlinkSync(imagePath);
       }
     }
-    
+
     if (category && !mongoose.isValidObjectId(category)) {
       return sendResponse(res, 400, false, "Invalid Category ID");
     }
@@ -642,15 +654,15 @@ export const universalProductList = async (req, res) => {
       city,
       categories,
       subcategories,
-      sizes, 
-      minPrice, 
+      sizes,
+      minPrice,
       maxPrice,
       sortBy,
       sortOrder,
       random,
       page,
       limit,
-      colors
+      colors,
     } = req.body;
 
     if (!city) {
@@ -708,12 +720,12 @@ export const universalProductList = async (req, res) => {
     }
 
     if (colors) {
-    pipeline.push({
-      $match: {
-        colors: new mongoose.Types.ObjectId(colors),
-      },
-    });
-  }
+      pipeline.push({
+        $match: {
+          colors: new mongoose.Types.ObjectId(colors),
+        },
+      });
+    }
 
     if (minPrice !== undefined && maxPrice !== undefined) {
       pipeline.push({
@@ -795,10 +807,10 @@ export const universalProductList = async (req, res) => {
         from: "colors",
         localField: "colors",
         foreignField: "_id",
-        as: "colors"
-      }
+        as: "colors",
+      },
     });
-    
+
     pipeline.push({
       $lookup: {
         from: "productsizes",
@@ -820,7 +832,6 @@ export const universalProductList = async (req, res) => {
       },
     });
 
-    
     pipeline.push(
       {
         $lookup: {
@@ -838,7 +849,7 @@ export const universalProductList = async (req, res) => {
               },
             },
             {
-              $project: { _id: 1 },
+              $project: { _id: 1, storeName: 1  },
             },
           ],
           as: "storeInfo",
@@ -847,6 +858,7 @@ export const universalProductList = async (req, res) => {
       {
         $addFields: {
           storeId: { $arrayElemAt: ["$storeInfo._id", 0] },
+    storeName: { $arrayElemAt: ["$storeInfo.storeName", 0] },
         },
       },
       {
@@ -894,7 +906,7 @@ export const universalProductList = async (req, res) => {
     });
   } catch (error) {
     console.error("Universal Product List Error:", error);
-    return sendResponse(res, 500, false,error.message);
+    return sendResponse(res, 500, false, error.message);
   }
 };
 
@@ -990,7 +1002,7 @@ export const homePageProductList = async (req, res) => {
               },
             },
             {
-              $project: { _id: 1 },
+              $project: { _id: 1, storeName: 1  },
             },
           ],
           as: "storeInfo",
@@ -1007,6 +1019,7 @@ export const homePageProductList = async (req, res) => {
       {
         $addFields: {
           storeId: { $arrayElemAt: ["$storeInfo._id", 0] },
+    storeName: { $arrayElemAt: ["$storeInfo.storeName", 0] },
         },
       },
       {
@@ -1017,7 +1030,12 @@ export const homePageProductList = async (req, res) => {
     ];
 
     const paginatedPipeline = [...pipeline];
-    if (!isNaN(parsedPage) && parsedPage > 0 && !isNaN(parsedLimit) && parsedLimit > 0) {
+    if (
+      !isNaN(parsedPage) &&
+      parsedPage > 0 &&
+      !isNaN(parsedLimit) &&
+      parsedLimit > 0
+    ) {
       const skip = (parsedPage - 1) * parsedLimit;
       paginatedPipeline.push({ $skip: skip }, { $limit: parsedLimit });
     }
@@ -1038,4 +1056,3 @@ export const homePageProductList = async (req, res) => {
     return sendResponse(res, 500, false, "Something went wrong");
   }
 };
-
