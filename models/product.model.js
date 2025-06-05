@@ -28,6 +28,11 @@ const ProductSchema = new mongoose.Schema(
       ref: "SellerUserAuth",
       required: true,
     },
+    storeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "StoreInfo",
+      required: true,
+    },
     primaryImage: {
       type: String, 
       required: false

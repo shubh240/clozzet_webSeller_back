@@ -4,6 +4,7 @@ import { ProductImage } from "../models/productImage.model.js";
 import cloudinary from "../config/cloudinary.js";
 import fs from "fs";
 import mongoose from "mongoose";
+import {StoreInfo} from "../models/sellerStoreInfo.model.js";
 
 export const createProduct = async (req, res) => {
   try {
@@ -78,6 +79,8 @@ export const createProduct = async (req, res) => {
       }
     }
 
+    const store = await StoreInfo.findOne({ sellerAuthId: new mongoose.Types.ObjectId(sellerId) ,is_deleted: false }).select("_id");
+    
     // Create product
     const newProduct = await Product.create({
       name: name.trim(),
@@ -90,6 +93,7 @@ export const createProduct = async (req, res) => {
       originalPrice: originalPrice || 0,
       sizeChart,
       seller: sellerId,
+      storeId: store?._id,
       primaryImage: primaryImageUrl,
       colors,
       createdBy: sellerId,
@@ -118,9 +122,10 @@ export const createProduct = async (req, res) => {
     return sendResponse(res, 500, false, "Error creating product");
   }
 };
+
 export const getProducts = async (req, res) => {
   try {
-    const { search = "", category, brandName, page, limit, colors } = req.query;
+    const { search = "", category, brandName,storeId, page, limit, colors } = req.query;
     const matchStage = {
       seller: new mongoose.Types.ObjectId(req.id),
       isDeleted: false,
@@ -153,6 +158,15 @@ export const getProducts = async (req, res) => {
         },
       });
     }
+
+    if (storeId) {
+      pipeline.push({
+        $match: {
+          storeId: new mongoose.Types.ObjectId(storeId),
+        },
+      });
+    }
+
     // Lookups
     pipeline.push(
       {
@@ -663,6 +677,7 @@ export const universalProductList = async (req, res) => {
       page,
       limit,
       colors,
+      storeId
     } = req.body;
 
     if (!city) {
@@ -723,6 +738,17 @@ export const universalProductList = async (req, res) => {
       pipeline.push({
         $match: {
           colors: new mongoose.Types.ObjectId(colors),
+        },
+      });
+    }
+
+    if (storeId) {
+      const storeIdObjectIds = storeId.map(
+        (id) => new mongoose.Types.ObjectId(id)
+      );
+      pipeline.push({
+        $match: {
+          storeId: {$in :storeIdObjectIds},
         },
       });
     }
