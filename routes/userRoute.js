@@ -5,6 +5,7 @@ import {
   verifyOtp,
   logoutSeller,
 } from "../controllers/userController.js";
+import isUserAuthenticated from "../middleware/isUserAuthenticated.js";
 
 const router = express.Router();
 
@@ -12,6 +13,6 @@ const router = express.Router();
 router.route("/login").post(loginseller);
 router.route("/generateOtp").post(generateOtp);
 router.route("/verifyOtp").post(verifyOtp);
-router.route("/logout").get(logoutSeller);
+router.route("/logout",isUserAuthenticated).get(logoutSeller);
 
 export default router;
