@@ -170,6 +170,44 @@ export const createOrder = async (req, res) => {
 };
 
 /**
+ * 
+ * Accept or Reject Order by seller
+ * 
+ * 
+ */
+export const updateOrderStatusBySeller = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { status } = req.body;
+
+    if(!orderId) return sendResponse(res, 400, false, "OrderId is required");
+    if(!status) return sendResponse(res, 400, false, "Status is required");
+
+    if (!["Accepted", "Rejected"].includes(status)) {
+      return sendResponse(res, 400, false, "Status must be either 'Accepted' or 'Rejected'");
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return sendResponse(res, 404, false, "Order not found");
+    }
+
+    if (order.orderStatus !== "Pending") {
+      return sendResponse(res, 400, false, "Only pending orders can be updated");
+    }
+
+    order.orderStatus = status;
+    await order.save();
+
+    return sendResponse(res, 200, true, `Order ${status.toLowerCase()} successfully`, order);
+  } catch (error) {
+    console.error("Order status update error:", error.message);
+    return sendResponse(res, 500, false, "Something went wrong");
+  }
+};
+
+
+/**
  *
  * Razorpay Order Creation (for Online Payments)
  *

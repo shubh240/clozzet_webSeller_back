@@ -8,7 +8,8 @@ import {
   getOrderDetails,
   returnOrder,
   razorpayWebhook,
-  trackShipments
+  trackShipments,
+  updateOrderStatusBySeller
   // generateInvoice
 } from "../controllers/orderController.js";
 import isUserAuthenticated from "../middleware/isUserAuthenticated.js";
@@ -17,6 +18,7 @@ import isUserAuthenticated from "../middleware/isUserAuthenticated.js";
 const router = express.Router();
 
 router.post("/create-order", isUserAuthenticated, createOrder);
+router.put("/update-order-status/:orderId", isUserAuthenticated, updateOrderStatusBySeller);
 router.post("/list-order", isUserAuthenticated, listOrders);
 router.get("/order-details/:orderId", isUserAuthenticated, getOrderDetails);
 
