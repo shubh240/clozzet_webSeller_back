@@ -19,7 +19,7 @@ const router = express.Router();
 router.route("/signup").post(signup);
 router.route("/generateOtp").post(generateOtp);
 router.route("/verifyOtp").post(verifyOtp);
-router.route("/logout").get(logout);
+router.route("/logout",isUserAuthenticated).get(logout);
 router.put("/profile", isUserAuthenticated ,
   upload.fields([
     { name: "image", maxCount: 1 }

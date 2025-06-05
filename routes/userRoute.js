@@ -14,7 +14,7 @@ const router = express.Router();
 router.route("/login").post(loginseller);
 router.route("/generateOtp").post(generateOtp);
 router.route("/verifyOtp").post(verifyOtp);
-router.route("/logout").get(logoutSeller);
+router.route("/logout",isUserAuthenticated).get(logoutSeller);
 
 router.put("/update-fcm-token", isUserAuthenticated, updateSellerFcmToken)
 
