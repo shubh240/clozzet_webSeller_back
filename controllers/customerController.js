@@ -14,25 +14,30 @@ const OTP_EXPIRY_MINUTES = 5;
 
 export const signup = async (req, res) => {
   try {
-    const { fullName, email, countryCode, mobileNo ,altMobileNo } = req.body;
+    const { fullName, email, countryCode, mobileNo, altMobileNo } = req.body;
 
-    if (
-      !fullName ||
-      !email ||
-      !mobileNo ||
-      !countryCode
-    ) {
+    if (!fullName || !email || !mobileNo || !countryCode) {
       return sendResponse(res, 400, false, "All fields are required");
     }
 
     const existingEmail = await Customer.findOne({ email });
     if (existingEmail) {
-      return sendResponse(res, 400, false, "Customer already exists with this email.");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Customer already exists with this email."
+      );
     }
 
     const existingMobile = await Customer.findOne({ mobileNo });
     if (existingMobile) {
-      return sendResponse(res, 400, false, "Customer already exists with this phone number.");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Customer already exists with this phone number."
+      );
     }
 
     // Create new customer
@@ -45,7 +50,6 @@ export const signup = async (req, res) => {
     });
 
     return sendResponse(res, 201, true, "Account created successfully.");
-
   } catch (error) {
     console.log(`Sign up customer error: ${error}`);
     return sendResponse(res, 500, false, "Internal server error");
@@ -54,14 +58,21 @@ export const signup = async (req, res) => {
 
 export const generateOtpOld = async (req, res) => {
   try {
-    const {countryCode, mobileNo } = req.body;
-    if(!mobileNo || !countryCode){
-      return sendResponse(res, 400, false, "Mobile Number and countryCode are required");
+    const { countryCode, mobileNo } = req.body;
+    if (!mobileNo || !countryCode) {
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Mobile Number and countryCode are required"
+      );
     }
-    const customer = await Customer.findOne({ mobileNo,countryCode });
+    const customer = await Customer.findOne({ mobileNo, countryCode });
 
     if (!customer) {
-      return res.status(404).json({ message: "Customer not found.", success: false });
+      return res
+        .status(404)
+        .json({ message: "Customer not found.", success: false });
     }
 
     // const otp = crypto.randomInt(100000, 999999).toString();
@@ -87,24 +98,29 @@ export const generateOtpOld = async (req, res) => {
     // Send SMS logic here
     // await sns.publish({ Message: message, PhoneNumber: formattedNumber }).promise();
     return sendResponse(res, 201, true, "OTP sent to your mobile number.");
-
   } catch (err) {
     console.error("OTP Send Error:", err);
     return sendResponse(res, 500, false, err.message);
   }
 };
 
-
 export const generateOtp = async (req, res) => {
   try {
-    const {countryCode, mobileNo } = req.body;
-    if(!mobileNo || !countryCode){
-      return sendResponse(res, 400, false, "Mobile Number and countryCode are required");
+    const { countryCode, mobileNo } = req.body;
+    if (!mobileNo || !countryCode) {
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Mobile Number and countryCode are required"
+      );
     }
-    const customer = await Customer.findOne({ mobileNo,countryCode });
+    const customer = await Customer.findOne({ mobileNo, countryCode });
 
     if (!customer) {
-      return res.status(404).json({ message: "Customer not found.", success: false });
+      return res
+        .status(404)
+        .json({ message: "Customer not found.", success: false });
     }
 
     // const otp = crypto.randomInt(100000, 999999).toString();
@@ -123,12 +139,11 @@ export const generateOtp = async (req, res) => {
     );
 
     const sendResult = await sendOtp(mobileNo, otp);
-      if (!sendResult.success) {
+    if (!sendResult.success) {
       return sendResponse(res, 500, false, "Failed to send OTP");
     }
 
     return sendResponse(res, 201, true, "OTP sent to your mobile number.");
-    
   } catch (err) {
     console.error("OTP Send Error:", err);
     return sendResponse(res, 500, false, err.message);
@@ -137,10 +152,15 @@ export const generateOtp = async (req, res) => {
 
 export const verifyOtp = async (req, res) => {
   try {
-    const { mobileNo, otp,countryCode ,fcmToken } = req.body;
+    const { mobileNo, otp, countryCode, fcmToken } = req.body;
 
     if (!mobileNo || !otp || !countryCode) {
-      return sendResponse(res, 400, false, "Mobile number,countryCode and OTP are required");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Mobile number,countryCode and OTP are required"
+      );
     }
 
     const otpRecord = await Otp.findOne({ mobileNo });
@@ -159,7 +179,7 @@ export const verifyOtp = async (req, res) => {
       return sendResponse(res, 400, false, "Invalid or expired OTP.");
     }
 
-    const customer = await Customer.findOne({ mobileNo,countryCode });
+    const customer = await Customer.findOne({ mobileNo, countryCode });
     if (!customer) {
       return sendResponse(res, 404, false, "Customer not found.");
     }
@@ -189,16 +209,22 @@ export const verifyOtp = async (req, res) => {
       sameSite: "strict",
     });
 
-    return sendResponse(res, 200, true, "OTP verified successfully. Customer is now active.", {
-      token,
-      user: {
-        _id: customer._id,
-        fullName: customer.fullName,
-        email: customer.email,
-        mobileNo: customer.mobileNo,
-        isActive: customer.isActive,
-      },
-    });
+    return sendResponse(
+      res,
+      200,
+      true,
+      "OTP verified successfully. Customer is now active.",
+      {
+        token,
+        user: {
+          _id: customer._id,
+          fullName: customer.fullName,
+          email: customer.email,
+          mobileNo: customer.mobileNo,
+          isActive: customer.isActive,
+        },
+      }
+    );
   } catch (error) {
     console.error("OTP verification error:", error);
     return sendResponse(res, 500, false, "Internal server error");
@@ -238,7 +264,7 @@ export const logout = async (req, res) => {
 export const updateProfile = async (req, res) => {
   try {
     const customerId = req.id;
-    const { fullName } = req.body;
+    const { fullName, fcmToken } = req.body;
 
     let imageUrl;
 
@@ -259,6 +285,7 @@ export const updateProfile = async (req, res) => {
       {
         ...(fullName && { fullName }),
         ...(imageUrl && { image: imageUrl }),
+        ...(fcmToken && { fcmToken }),
       },
       { new: true }
     );
@@ -300,7 +327,12 @@ export const addAddress = async (req, res) => {
       !Array.isArray(location.coordinates) ||
       location.coordinates.length !== 2
     ) {
-      return sendResponse(res, 400, false, 'All required fields must be provided');
+      return sendResponse(
+        res,
+        400,
+        false,
+        "All required fields must be provided"
+      );
     }
 
     const newAddress = await CustomerAddress.create({
@@ -319,23 +351,21 @@ export const addAddress = async (req, res) => {
       },
     });
 
-    return sendResponse(res, 201, true, 'Address created', newAddress);
+    return sendResponse(res, 201, true, "Address created", newAddress);
   } catch (error) {
     return sendResponse(res, 500, false, error.message);
   }
 };
-
 
 // Get all addresses for customer
 export const getAllAddresses = async (req, res) => {
   try {
     const addresses = await CustomerAddress.find({
       customerId: req.id,
-      is_deleted: false
+      is_deleted: false,
     }).sort({ createdAt: -1 });
 
-    return sendResponse(res, 200, true,"Address data found", addresses);
-
+    return sendResponse(res, 200, true, "Address data found", addresses);
   } catch (error) {
     return sendResponse(res, 500, false, error.message);
   }
@@ -347,14 +377,13 @@ export const getAddressById = async (req, res) => {
     const address = await CustomerAddress.findOne({
       _id: req.params.id,
       customerId: req.id,
-      is_deleted: false
+      is_deleted: false,
     });
 
     if (!address) {
-      return sendResponse(res, 400, false,"Address not found");
+      return sendResponse(res, 400, false, "Address not found");
     }
-    return sendResponse(res, 200, true,"Address data found", address);
-
+    return sendResponse(res, 200, true, "Address data found", address);
   } catch (error) {
     return sendResponse(res, 500, false, error.message);
   }
@@ -372,7 +401,7 @@ export const updateAddress = async (req, res) => {
       state,
       pincode,
       address_url,
-      location
+      location,
     } = req.body;
 
     const updateFields = {
@@ -383,19 +412,19 @@ export const updateAddress = async (req, res) => {
       city,
       state,
       pincode,
-      address_url
+      address_url,
     };
 
     // If location is provided, validate it
     if (location) {
       if (
-        typeof location !== 'object' ||
-        location.type !== 'Point' ||
+        typeof location !== "object" ||
+        location.type !== "Point" ||
         !Array.isArray(location.coordinates) ||
         location.coordinates.length !== 2 ||
-        location.coordinates.some(coord => isNaN(coord))
+        location.coordinates.some((coord) => isNaN(coord))
       ) {
-        return sendResponse(res, 400, false,"Invalid location format");
+        return sendResponse(res, 400, false, "Invalid location format");
       }
 
       updateFields.location = {
@@ -411,10 +440,14 @@ export const updateAddress = async (req, res) => {
     );
 
     if (!updated) {
-      return sendResponse(res, 400, false,"Address not found or already deleted");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Address not found or already deleted"
+      );
     }
-    return sendResponse(res, 200, true,"Address updated",updated);
-
+    return sendResponse(res, 200, true, "Address updated", updated);
   } catch (error) {
     return sendResponse(res, 500, false, error.message);
   }
@@ -446,11 +479,15 @@ export const deleteAddress = async (req, res) => {
     );
 
     if (!deleted) {
-      return sendResponse(res, 400, false, "Address not found or already deleted");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Address not found or already deleted"
+      );
     }
 
     return sendResponse(res, 200, true, "Address deleted successfully");
-
   } catch (error) {
     return sendResponse(res, 500, false, error.message);
   }

@@ -273,3 +273,27 @@ export const logoutSeller = async(req, res) => {
     return sendResponse(res, 500, false, "Internal server error");
   }
 };
+
+export const updateSellerFcmToken = async (req, res) => {
+  try {
+    const sellerId = req.id;
+    const { fcmToken } = req.body;
+    console.log(sellerId)
+    if (!fcmToken) {
+      return sendResponse(res, 400, false, "FCM token is required");
+    }
+
+    const seller = await SellerUserAuth.findById(sellerId);
+    if (!seller) {
+      return sendResponse(res, 404, false, "Seller not found");
+    }
+
+    seller.fcmToken = fcmToken;
+    await seller.save();
+
+    return sendResponse(res, 200, true, "FCM token updated successfully");
+  } catch (error) {
+    console.error("Update FCM token error:", error);
+    return sendResponse(res, 500, false, "Internal server error");
+  }
+};
