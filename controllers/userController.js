@@ -113,13 +113,13 @@ export const loginseller = async (req, res) => {
     };
 
     const token = await jwt.sign(tokenData, process.env.JWT_SECRET_KEY, {
-      expiresIn: "1d",
+      expiresIn: "7d",
     });
     user.token = token;
     await user.save();
 
     res.cookie("token", token, {
-      maxAge: 24 * 60 * 60 * 1000,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
       httpOnly: true,
       sameSite: "strict",
     });
@@ -245,16 +245,29 @@ export const verifyOtp = async (req, res) => {
   }
 };
 
-export const logoutSeller = (req, res) => {
+export const logoutSeller = async(req, res) => {
   console.log("Inside log out seller");
   try {
-    res.clearCookie("user-token", {
+    if (!req.id) {
+      return sendResponse(res, 400, false, "Seller not authenticated.");
+    }
+
+    const seller = await SellerUserAuth.findById(req.id);
+    if (!seller) {
+      return sendResponse(res, 404, false, "Seller not found.");
+    }
+    
+    seller.token = null;
+    seller.fcmToken = null;
+    await seller.save();
+
+    res.clearCookie("token", {
       httpOnly: true,
       sameSite: "strict",
       secure: process.env.NODE_ENV === "production", // optional for HTTPS
     });
 
-    return sendResponse(res, 200, true, "Logged out successfully");
+    return sendResponse(res, 200, true, "Seller logged out successfully");
   } catch (error) {
     console.log("Logout error:", error);
     return sendResponse(res, 500, false, "Internal server error");

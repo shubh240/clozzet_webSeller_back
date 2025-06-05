@@ -11,7 +11,19 @@ const isUserAuthenticated = async (req, res, next) => {
     if (!token) {
       return sendResponse(res, 400, false, "Token missing");
     }
-    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
+
+    let decoded;
+
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
+    } catch (err) {
+      if (err.name === "TokenExpiredError") {
+        return sendResponse(res, 401, false, "Token has expired. Please log in again.");
+      } else {
+        return sendResponse(res, 401, false, "Invalid token");
+      }
+    }
+    
     if (!decoded || !decoded.userId) {
       return sendResponse(res, 401, false, "Invalid token");
     }
