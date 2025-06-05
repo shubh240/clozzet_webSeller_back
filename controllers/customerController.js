@@ -11,6 +11,7 @@ import fs from "fs";
 import { CustomerAddress } from "../models/customerAddres.model.js";
 
 const OTP_EXPIRY_MINUTES = 5;
+
 export const signup = async (req, res) => {
   try {
     const { fullName, email, countryCode, mobileNo ,altMobileNo } = req.body;
@@ -169,7 +170,7 @@ export const verifyOtp = async (req, res) => {
     };
 
     const token = jwt.sign(tokenPayload, process.env.JWT_SECRET_KEY, {
-      expiresIn: "1d",
+      expiresIn: "7d",
     });
 
     // Update customer as active and store token
@@ -184,7 +185,7 @@ export const verifyOtp = async (req, res) => {
     // Set token in cookie
     res.cookie("token", token, {
       httpOnly: true,
-      maxAge: 24 * 60 * 60 * 1000,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
       sameSite: "strict",
     });
 
@@ -206,32 +207,28 @@ export const verifyOtp = async (req, res) => {
 
 export const logout = async (req, res) => {
   try {
-    const token = req.cookies.token;
-
-    if (!token) {
-      return sendResponse(res, 400, false, "No token found.");
+    if (!req.id) {
+      return sendResponse(res, 400, false, "Customer not authenticated.");
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
-    const customerId = decoded.userId;
-
-    const customer = await Customer.findById(customerId);
+    const customer = await Customer.findById(req.id);
     if (!customer) {
       return sendResponse(res, 404, false, "Customer not found.");
     }
 
     customer.isActive = false;
     customer.token = null;
+    customer.fcmToken = null;
     await customer.save();
 
     // Clear token cookie
-    res.cookie("token", "", {
-      maxAge: 0,
+    res.cookie("token", {
+      // maxAge: 0,
       httpOnly: true,
       sameSite: "strict",
     });
 
-    return sendResponse(res, 200, true, "Logged out successfully.");
+    return sendResponse(res, 200, true, "Customer logged out successfully.");
   } catch (error) {
     console.error("Logout error:", error);
     return sendResponse(res, 500, false, "Internal server error");
