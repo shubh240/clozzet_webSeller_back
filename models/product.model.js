@@ -41,6 +41,10 @@ const ProductSchema = new mongoose.Schema(
        type: mongoose.Schema.Types.ObjectId,
        ref: "Color",
      },
+    totalRating : {type:Number ,default : 0},
+    totalReview : {type:Number ,default : 0},
+    avgRating: { type: Number, default: 0 },
+    
     isDeleted: { type: Boolean, default: false },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
