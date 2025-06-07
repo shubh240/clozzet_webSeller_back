@@ -10,11 +10,11 @@ import isUserAuthenticated from "../middleware/isUserAuthenticated.js";
 
 const router = express.Router();
 
-// router.route("/signup").post(registerSeller);
-router.route("/login").post(loginseller);
-router.route("/generateOtp").post(generateOtp);
-router.route("/verifyOtp").post(verifyOtp);
-router.route("/logout",isUserAuthenticated).get(logoutSeller);
+// router.post("/signup", registerSeller);
+router.post("/login", loginseller);
+router.post("/generateOtp", generateOtp);
+router.post("/verifyOtp", verifyOtp);
+router.get("/logout",isUserAuthenticated, logoutSeller);
 
 router.put("/update-fcm-token", isUserAuthenticated, updateSellerFcmToken)
 

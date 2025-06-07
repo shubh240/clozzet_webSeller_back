@@ -16,10 +16,10 @@ import upload from "../middleware/multer.middleware.js";
 
 const router = express.Router();
 
-router.route("/signup").post(signup);
-router.route("/generateOtp").post(generateOtp);
-router.route("/verifyOtp").post(verifyOtp);
-router.route("/logout",isUserAuthenticated).get(logout);
+router.post("/signup", signup);
+router.post("/generateOtp", generateOtp);
+router.post("/verifyOtp", verifyOtp);
+router.get("/logout",isUserAuthenticated, logout);
 router.put("/profile", isUserAuthenticated ,
   upload.fields([
     { name: "image", maxCount: 1 }
