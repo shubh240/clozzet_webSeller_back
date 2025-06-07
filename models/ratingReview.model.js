@@ -32,9 +32,21 @@ const ratingReviewSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    reviewReply: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    images: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
+
     timing: {
       type: Date,
-      default: Date.now, 
+      default: Date.now,
     },
   },
   {

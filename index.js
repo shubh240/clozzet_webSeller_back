@@ -6,7 +6,6 @@ import connectDB from "./config/database.js";
 import userRoute from "./routes/userRoute.js";
 import productRoutes from "./routes/productRoute.js";
 import orderRoute from "./routes/orderRoute.js";
-import storeRoute from "./routes/storeRoute.js";
 import employeeRoute from "./routes/employeeRoute.js";
 import couponRoute from "./routes/couponRoute.js";
 import customerRoute from "./routes/customerRoute.js";
@@ -17,6 +16,7 @@ import subCategoryRoute from "./routes/subCategoryRoutes.js";
 import sizeChartRoute from "./routes/sizeChartRoute.js"
 import productSizeRoute from "./routes/productSizeRoute.js"
 import cartRoute from "./routes/cartRoute.js"
+import ratingReviewRoute from "./routes/ratingReviewRoute.js"
 import path from "path";
 import { fileURLToPath } from "url";
 import notificationRoutes from "./routes/notificationRoute.js";
@@ -73,14 +73,14 @@ app.use("/api/v1/customer", wishlistRoute);
 app.use("/api/v1/cart", cartRoute);
 app.use("/api/v1/order", orderRoute);
 app.use("/api/v1/coupon", couponRoute);
-app.use("/api/v1/store", storeRoute);
+app.use("/api/v1/review", ratingReviewRoute);
 
 
 app.use("/api/v1/employee", employeeRoute);
 app.use("/api/v1/seller-dashboard", sellerDashboardRoute);
 app.use("/api/v1/category", categoryRoute);
 app.use("/api/v1/subCategory", subCategoryRoute);
-app.use("/api", notificationRoutes);
+app.use("/api/v1", notificationRoutes);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

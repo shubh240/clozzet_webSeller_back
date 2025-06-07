@@ -1,20 +1,30 @@
 import mongoose from "mongoose";
 
-const returnRequestSchema = new mongoose.Schema(
+const returnSchema = new mongoose.Schema(
     {
         orderId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Order",
             required: true,
         },
-        orderItemId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "OrderItem",
-            required: true,
-        },
+        // orderItemId: {
+        //     type: mongoose.Schema.Types.ObjectId,
+        //     ref: "OrderItem",
+        //     required: true,
+        // },
         customerId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Customer",
+            required: true,
+        },
+        storeId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "StoreInfo",
+            required: true,
+        },
+        sellerId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "SellerUserAuth",
             required: true,
         },
         reason: {
@@ -24,11 +34,10 @@ const returnRequestSchema = new mongoose.Schema(
         description: {
             type: String,
         },
-        images: [
+        image:
             {
                 type: String,
             },
-        ],
         /**
          * "Requested": When the customer submits the return.
          * "Approved": When admin/seller reviews and approves the return.
@@ -39,7 +48,7 @@ const returnRequestSchema = new mongoose.Schema(
          */
         status: {
             type: String,
-            enum: ["Requested", "Approved", "Pickup Initiated", "Picked Up", "Rejected", "Completed"],
+            // enum: ["Requested", "Approved", "Pickup Initiated", "Picked Up", "Rejected", "Completed"],
             default: "Requested",
         },
         /**
@@ -50,7 +59,7 @@ const returnRequestSchema = new mongoose.Schema(
          */
         refundStatus: {
             type: String,
-            enum: ["Pending", "Processing", "Completed", "Failed"],
+            // enum: ["Pending", "Processing", "Completed", "Failed"],
             default: "Pending",
         },
         refundId: {
@@ -79,4 +88,4 @@ const returnRequestSchema = new mongoose.Schema(
     }
 );
 
-export const ReturnRequest = mongoose.model("ReturnRequest", returnRequestSchema);
+export const Return = mongoose.model("Return", returnSchema);
