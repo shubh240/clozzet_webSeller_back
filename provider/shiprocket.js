@@ -74,4 +74,28 @@ export const createShiprocketShipment=  async(order, store, customerAddress)=> {
         console.error('Shiprocket shipment error:', error.response?.data || error.message);
         throw new Error('Failed to create shipment with Shiprocket');   
     }
-  }
+}
+
+export const createShiprocketReversePickup = async (order, returnRequest) => {
+  const response = await fetch("https://apiv2.shiprocket.in/v1/external/orders/create/return", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer YOUR_SHIPROCKET_TOKEN"
+    },
+    body: JSON.stringify({
+      order_id: order._id,
+      pickup_location: returnRequest.pickupAddress,
+      items: returnRequest.orderItemIds.map(id => ({
+        name: "Product Name",
+        quantity: 1
+      })),
+    }),
+  });
+
+  const data = await response.json();
+  return {
+    trackingId: data.shipment_id
+  };
+};
+

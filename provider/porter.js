@@ -100,3 +100,26 @@ export const createPorterShipment = async (order, store, customerAddress) => {
     throw new Error(porterErrorMessage);
   }
 };
+
+export const createPorterReversePickup = async (order, returnRequest) => {
+  const response = await fetch("https://api.porter.in/reverse-pickup", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer YOUR_PORTER_TOKEN"
+    },
+    body: JSON.stringify({
+      pickup_address: returnRequest.pickupAddress,
+      drop_address: "Your warehouse address",
+      items: returnRequest.orderItemIds.map(id => ({
+        name: "Product",
+        quantity: 1
+      })),
+    }),
+  });
+
+  const data = await response.json();
+  return {
+    trackingId: data.tracking_id
+  };
+};

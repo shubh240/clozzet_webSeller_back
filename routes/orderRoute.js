@@ -1,4 +1,5 @@
 import express from "express";
+import upload from "../middleware/multer.middleware.js";
 import {
   createOrder,
   createRazorpayOrder,
@@ -9,7 +10,10 @@ import {
   returnOrder,
   razorpayWebhook,
   trackShipments,
-  updateOrderStatusBySeller
+  updateOrderStatusBySeller,
+  getSellerReturnRequests,
+  getCustomerReturnRequests,
+  retunActionPerform
   // generateInvoice
 } from "../controllers/orderController.js";
 import isUserAuthenticated from "../middleware/isUserAuthenticated.js";
@@ -22,10 +26,19 @@ router.put("/update-order-status/:orderId", isUserAuthenticated, updateOrderStat
 router.post("/list-order", isUserAuthenticated, listOrders);
 router.get("/order-details/:orderId", isUserAuthenticated, getOrderDetails);
 
+
 router.post("/create-razorpay-order", isUserAuthenticated, createRazorpayOrder);
 router.post("/verify-payment", isUserAuthenticated, verifyPayment);
 
-router.post("/return-order", isUserAuthenticated, returnOrder);
+
+router.post("/return-order", isUserAuthenticated,  upload.fields([
+    { name: "image", maxCount: 1 }
+  ]), returnOrder);
+router.get("/list-sellerReturnOrder", isUserAuthenticated, getSellerReturnRequests);
+router.post("/retunActionPerform/:id", isUserAuthenticated, retunActionPerform);
+
+
+router.get("/list-customerReturnOrder", isUserAuthenticated, getCustomerReturnRequests);
 
 router.post("/create-shipment", isUserAuthenticated, createShipment);
 

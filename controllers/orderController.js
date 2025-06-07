@@ -11,20 +11,23 @@ import { v4 as uuidv4 } from "uuid";
 import { sendResponse } from "../common/index.js";
 import { calculateAndUpdateCartTotals } from "./cartController.js";
 import { ShipmentProvider } from "../models/shipmentProvider.model.js";
-import { createShiprocketShipment } from "../provider/shiprocket.js";
-import { createPorterShipment } from "../provider/porter.js";
+import { createShiprocketShipment ,createShiprocketReversePickup } from "../provider/shiprocket.js";
+import { createPorterShipment ,createPorterReversePickup } from "../provider/porter.js";
 import { StoreInfo } from "../models/sellerStoreInfo.model.js";
 import { Category } from "../models/category.model.js";
 import { Subcategory } from "../models/subCategories.model.js";
 import { Customer } from "../models/customer.model.js";
 import { Color } from "../models/color.model.js";
 import { Refund } from "../models/refund.model.js";
+import { Return } from "../models/return.model.js";
+import { ReturnProduct } from "../models/retunProduct.model.js";
 import { PaymentType } from "../models/paymentType.model.js";
 import { razorpay } from "../config/razorPay.js";
 import mongoose from 'mongoose';
 import axios from 'axios';
 import { Coupon } from "../models/coupon.model.js";
-
+import cloudinary from "../config/cloudinary.js";
+import fs from "fs";
 
 /**
  *
@@ -306,45 +309,276 @@ export const verifyPayment = async (req, res) => {
  */
 export const returnOrder = async(req,res)=>{
   try {
-    const { orderItemId, reason } = req.body;
-
-    if (!orderItemId || !reason) {
-      return sendResponse(res, 400, false, "All fileds are required");
-    }
-
-    const orderItem = await OrderItem.findById(orderItemId);
-
-    if(!orderItem) 
-    {
-      return sendResponse(res, 400,false, 'No order item found');
-    }
+    const customerId = req.id;
+     const {
+      orderId,
+      reason,
+      description,
+      orderItemIds
+    } = req.body;
     
-    if(orderItem?.isRefunded)
-    {
-      return sendResponse(res, 400,false, 'Already refunded');
+    let parsedOrderItemIds;
+    try {
+      parsedOrderItemIds = typeof orderItemIds === "string" ? JSON.parse(orderItemIds) : orderItemIds;
+    } catch (err) {
+      return sendResponse(res, 400, false, "orderItemIds must be a valid JSON array.");
     }
 
-    const order = await Order.findById(orderItem?.orderId);
-
-    if(!order) 
-    {
-      return sendResponse(res, 400,false, 'No order found');
-    }
-    
-    if(order?.paymentStatus != "Success")
-    {
-      return sendResponse(res, 400,false, 'Payment not completed');
+    if (!Array.isArray(parsedOrderItemIds) || parsedOrderItemIds.length === 0) {
+      return sendResponse(res, 400, false, "orderItemIds must be a non-empty array.");
     }
 
-    
+    if (!orderId || !reason || !Array.isArray(parsedOrderItemIds) || parsedOrderItemIds.length === 0) {
+      return sendResponse(res, 400, false, "Missing required fields.");
+    }
 
-    return sendResponse(res, 200, true, "Returned successfully");
+    const order = await Order.findById(orderId)
+    if(order.orderStatus !== "Delivered") return sendResponse(res, 400, false,"You can only request a return after the product has been delivered."); 
+    if(order.paymentStatus !== "Success") return sendResponse(res, 400, false,"We haven't received your payment yet. Please complete the payment to request a return."); 
+
+    const existingReturns = await ReturnProduct.find({
+      orderItemId: { $in: parsedOrderItemIds }
+    }).populate("returnId");
+
+    const alreadyRequested = existingReturns.filter((rp) => rp.returnId && rp.returnId.customerId.toString() === customerId.toString());
+
+    if (alreadyRequested.length > 0) {
+      return sendResponse(res, 409, false, "Return request already exists for one or more selected items.");
+    }
+
+    let primaryImageUrl = "";
+    if (!req.files || !req.files["image"]) {
+      return sendResponse(res, 400, false, "image is required");
+    }
+
+        // Upload primary image
+      const imagePath = req.files["image"][0].path;
+      const imageResult = await cloudinary.uploader.upload(imagePath, {
+        folder: "uploads/returnOrder/images",
+        resource_type: "image",
+      });
+      primaryImageUrl = imageResult.secure_url;
+      fs.unlinkSync(imagePath);
+
+    const returnRequest = await Return.create({
+      orderId,
+      customerId,
+      storeId : order.storeId,
+      sellerId : order.sellerId,
+      reason,
+      description,
+      image :primaryImageUrl,
+      status: "Requested",
+      refundStatus: "Pending"
+    });
+
+    const returnProducts = parsedOrderItemIds.map(itemId => ({
+      returnId: returnRequest._id,
+      orderItemId: itemId
+    }));
+
+    await ReturnProduct.insertMany(returnProducts);
+
+    return sendResponse(res, 201, true, "Return request created successfully.", {
+      returnRequest,
+      returnProducts
+    });
 
   } catch (err) {
-    console.error('Returned error:', err);
+    console.error("Create Return Error:", err);
     return sendResponse(res, 500, false, "Returned failed");
   }
 }
+
+/**
+ *
+ * List Return Order (Seller-Side)
+ *
+ */
+export const getSellerReturnRequests = async (req, res) => {
+  try {
+    const sellerId = req.id;
+    const { status, page, limit } = req.query;
+
+    if (!sellerId) {
+      return sendResponse(res, 400, false, "Seller ID is required");
+    }
+
+    // Step 1: Get all orders of this seller
+    const orders = await Order.find({ sellerId }).select("_id");
+    const orderIds = orders.map((o) => o._id);
+
+    // Step 2: Build filter
+    const filter = {
+      orderId: { $in: orderIds },
+    };
+    if (status) filter.status = status;
+
+    // Step 3: Total count
+    const total = await Return.countDocuments(filter);
+
+    // Step 4: Set default pagination values
+    const currentPage = Number(page) || 1;
+    const perPage = Number(limit) || total || 1; // fallback to total if 0
+    const totalPages = Math.ceil(total / perPage);
+    const skip = (currentPage - 1) * perPage;
+
+    // Step 5: Query with pagination
+    const returns = await Return.find(filter)
+      .populate("customerId", "name email")
+      .populate("orderId", "orderNumber orderStatus paymentStatus")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(perPage);
+
+    return sendResponse(res, 200, true, "Returns fetched successfully", {
+      returns,
+      pagination: {
+        total,
+        page: currentPage,
+        limit: perPage,
+        totalPages,
+      },
+    });
+  } catch (err) {
+    console.error("Error fetching return requests:", err);
+    return sendResponse(res, 500, false, "Failed to fetch return requests");
+  }
+};
+
+/**
+ *
+ * List Return Order (Customer-Side)
+ *
+ */
+export const getCustomerReturnRequests = async (req, res) => {
+  try {
+    const customerId = req.id;
+    const { status, page, limit } = req.query;
+
+    if (!customerId) {
+      return sendResponse(res, 400, false, "Customer ID is required");
+    }
+
+    // Step 1: Get all orders of this seller
+    const orders = await Order.find({ customerId }).select("_id");
+    const orderIds = orders.map((o) => o._id);
+
+    // Step 2: Build filter
+    const filter = {
+      orderId: { $in: orderIds },
+    };
+    if (status) filter.status = status;
+
+    // Step 3: Total count
+    const total = await Return.countDocuments(filter);
+
+    // Step 4: Set default pagination values
+    const currentPage = Number(page) || 1;
+    const perPage = Number(limit) || total || 1; // fallback to total if 0
+    const totalPages = Math.ceil(total / perPage);
+    const skip = (currentPage - 1) * perPage;
+
+    // Step 5: Query with pagination
+    const returns = await Return.find(filter)
+      // .populate("customerId", "name email")
+      .populate("orderId", "orderNumber orderStatus paymentStatus")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(perPage);
+
+    return sendResponse(res, 200, true, "Returns fetched successfully", {
+      returns,
+      pagination: {
+        total,
+        page: currentPage,
+        limit: perPage,
+        totalPages,
+      },
+    });
+  } catch (err) {
+    console.error("Error fetching return requests:", err);
+    return sendResponse(res, 500, false, "Failed to fetch return requests");
+  }
+};
+
+/**
+ *
+ * Accept-Reject Return Order (Seller-Side)
+ *
+ */
+export const retunActionPerform = async (req, res) => {
+  try {
+    const sellerId = req.id;
+    const { id } = req.params;
+    const { action, response } = req.body;
+
+    if (!["approve", "reject"].includes(action)) {
+      return sendResponse(res, 400, false, "Invalid action. Use 'approve' or 'reject'.");
+    }
+
+    const returnRequest = await Return.findById(id);
+
+    if (!returnRequest) {
+      return sendResponse(res, 404, false, "Return request not found.");
+    }
+
+    if (returnRequest.sellerId.toString() !== sellerId.toString()) {
+      return sendResponse(res, 403, false, "You are not authorized to perform this action.");
+    }
+
+    if (returnRequest.status !== "Requested") {
+      return sendResponse(res, 400, false, `Return request is already ${returnRequest.status}.`);
+    }
+
+    if (action === "reject") {
+      returnRequest.status = "Rejected";
+      returnRequest.response = response || "No reason provided";
+      await returnRequest.save();
+      return sendResponse(res, 200, true, "Return request rejected successfully.", returnRequest);
+    }
+
+    returnRequest.status = "Approved";
+    await returnRequest.save();
+
+    const order = await Order.findById(returnRequest.orderId);
+    if (!order) {
+      return sendResponse(res, 404, false, "Order not found.");
+    }
+    const paymentTypeId = order.paymentTypeId; // 1 = COD, 2 = Online
+    let pickupInfo;
+    let shipmentProviderName;
+    if (paymentTypeId === 1) {
+      // COD → Use Shiprocket
+      pickupInfo = await createShiprocketReversePickup(order, returnRequest);
+      shipmentProviderName = "Shiprocket"
+    } else {
+      // Online → Use Porter
+      pickupInfo = await createPorterReversePickup(order, returnRequest);
+      shipmentProviderName = "Porter"
+    }
+
+    const shipmentProvider = await ShipmentProvider.findOne({
+      name: shipmentProviderName,
+    });
+    if (!pickupInfo.success) {
+      return sendResponse(res, 500, false, "Reverse shipment creation failed.", pickupInfo.error);
+    }
+
+    returnRequest.status = "Pickup Initiated";
+    returnRequest.shipmentProviderId = shipmentProvider._id;
+    returnRequest.trackingId = pickupInfo.trackingId;
+    returnRequest.pickupAddress = pickupInfo.pickupAddress;
+    returnRequest.pickupDate = pickupInfo.pickupDate;
+       
+    await returnRequest.save();
+
+    return sendResponse(res, 200, true, `Return request approved and pickup initiated.`, returnRequest);
+  } catch (err) {
+    console.error("Error in handleReturnAction:", err);
+    return sendResponse(res, 500, false, "Failed to perform return action.");
+  }
+};
 
 
 /**
