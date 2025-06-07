@@ -17,6 +17,7 @@ import subCategoryRoute from "./routes/subCategoryRoutes.js";
 import sizeChartRoute from "./routes/sizeChartRoute.js"
 import productSizeRoute from "./routes/productSizeRoute.js"
 import cartRoute from "./routes/cartRoute.js"
+import ratingReviewRoute from "./routes/ratingReviewRoute.js"
 import path from "path";
 import { fileURLToPath } from "url";
 import notificationRoutes from "./routes/notificationRoute.js";
@@ -74,6 +75,7 @@ app.use("/api/v1/cart", cartRoute);
 app.use("/api/v1/order", orderRoute);
 app.use("/api/v1/coupon", couponRoute);
 app.use("/api/v1/store", storeRoute);
+app.use("/api/v1/review", ratingReviewRoute);
 
 
 app.use("/api/v1/employee", employeeRoute);

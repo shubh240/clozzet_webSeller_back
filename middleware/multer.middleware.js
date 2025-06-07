@@ -1,6 +1,7 @@
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { v4 as uuidv4 } from 'uuid'; // install with `npm install uuid`
 
 // Set disk storage
 const storage = multer.diskStorage({
@@ -14,8 +15,12 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`);
-  },
+    // cb(null, `${Date.now()}-${file.originalname}`);
+  const ext = path.extname(file.originalname); // .jpg, .png etc.
+  const uniqueName = `${Date.now()}-${uuidv4()}${ext}`;
+  cb(null, uniqueName);
+}
+
 });
 
 // Validate file types (image and video)
