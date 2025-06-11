@@ -26,6 +26,7 @@ import { razorpay } from "../config/razorPay.js";
 import mongoose from 'mongoose';
 import axios from 'axios';
 import { Coupon } from "../models/coupon.model.js";
+import { CouponUsage } from "../models/couponUsage.model.js";
 import cloudinary from "../config/cloudinary.js";
 import fs from "fs";
 
@@ -141,15 +142,33 @@ export const createOrder = async (req, res) => {
         is_deleted: false,
         isActive: true,
       });
-
+      
       if (coupon) {
         if (coupon.usageLimit > 0 && coupon.currentUsagesCount >= coupon.usageLimit) {
           return sendResponse(res, 400, false, "Coupon usage limit exceeded");
         }
 
-        await Coupon.findByIdAndUpdate(coupon._id, {
-          $inc: { currentUsagesCount: 1 },
-        });
+      const userUsage = await CouponUsage.findOne({
+        couponId: coupon._id,
+        customerId: cart.customerId,
+      });
+
+      if (coupon.usageLimitPerUser > 0 && userUsage?.usageCount >= coupon.usageLimitPerUser) {
+          return sendResponse(
+            res,
+            400,
+            false,
+            "You have reached maximum usage for this coupon"
+          );
+        }
+      coupon.currentUsagesCount += 1;
+      await coupon.save();
+
+        await CouponUsage.findOneAndUpdate(
+          { couponId: coupon._id, customerId: cart.customerId },
+          { $inc: { usageCount: 1 } },
+          { upsert: true, new: true }
+        );
       }
     }
 
@@ -332,7 +351,8 @@ export const returnOrder = async(req,res)=>{
       return sendResponse(res, 400, false, "Missing required fields.");
     }
 
-    const order = await Order.findById(orderId)
+    const order = await Order.findById(orderId).populate("storeId").populate("sellerId");
+    if(!order) return sendResponse(res, 400, false,"Order not found.");
     if(order.orderStatus !== "Delivered") return sendResponse(res, 400, false,"You can only request a return after the product has been delivered."); 
     if(order.paymentStatus !== "Success") return sendResponse(res, 400, false,"We haven't received your payment yet. Please complete the payment to request a return."); 
 
@@ -379,6 +399,46 @@ export const returnOrder = async(req,res)=>{
 
     await ReturnProduct.insertMany(returnProducts);
 
+    /**
+     * Calling Reverse-Shipment Api's
+     */
+    const customerAddress = await CustomerAddress.findOne({
+      customerId,
+      is_deleted: false,
+      }).sort({ createdAt: -1 });
+
+    if (!customerAddress) {
+      return sendResponse(res, 404, false, "Customer address not found.");
+    }
+
+    await returnRequest.populate("customerId");
+
+    const paymentTypeId = order.paymentTypeId; // 1 = COD, 2 = Online
+    let pickupInfo;
+    let shipmentProviderName;
+
+    if (paymentTypeId === 1) {
+      // COD → Use Shiprocket
+      pickupInfo = await createShiprocketReversePickup(order, returnRequest, customerAddress,parsedOrderItemIds);
+      shipmentProviderName = "Shiprocket";
+    } else {
+      // Online → Use Porter
+      pickupInfo = await createPorterReversePickup(order, returnRequest, customerAddress);
+      shipmentProviderName = "Porter";
+    }
+    const shipmentProvider = await ShipmentProvider.findOne({ name: shipmentProviderName });
+
+    if (!pickupInfo.success) {
+      return sendResponse(res, 500, false, "Reverse shipment creation failed.", pickupInfo.error);
+    }
+
+    returnRequest.status = "Pickup Initiated";
+    returnRequest.shipmentProviderId = shipmentProvider._id;
+    returnRequest.trackingId = pickupInfo.trackingId;
+    returnRequest.pickupAddress = pickupInfo.pickupAddress;
+    returnRequest.pickupDate = pickupInfo.pickupDate;
+    await returnRequest.save();
+
     return sendResponse(res, 201, true, "Return request created successfully.", {
       returnRequest,
       returnProducts
@@ -389,6 +449,75 @@ export const returnOrder = async(req,res)=>{
     return sendResponse(res, 500, false, "Returned failed");
   }
 }
+
+/**
+ * @param {*} req  PorterWebhook
+ * @param {*} res
+ * @returns
+ */
+export const porterWebhookHandler = async (req, res) => {
+  try {
+    const { tracking_id, status } = req.body;
+
+    if (!tracking_id || !status) {
+      return sendResponse(res, 400, false, "Invalid payload");
+    }
+
+    if (status === "PICKED_UP") {
+      const returnRequest = await Return.findOne({ trackingId: tracking_id });
+
+      if (!returnRequest) {
+        return sendResponse(res, 404, false, "Return request not found");
+      }
+
+      returnRequest.status = "Picked Up";
+      await returnRequest.save();
+
+      return sendResponse(res, 200, true, "Pickup marked as completed");
+    }
+
+    return sendResponse(res, 200, true, "No action needed");
+  } catch (err) {
+    console.error("Porter Webhook Error:", err);
+    return sendResponse(res, 500, false, "Internal server error");
+  }
+};
+
+
+/**
+ * @param {*} req
+ * @param {*} res Shiprocketwebhook
+ * @returns
+ */
+export const shiprocketWebhookHandler = async (req, res) => {
+  try {
+    const { current_status, shipment_id } = req.body;
+
+    console.log("Shiprocket Webhook:", shipment_id, current_status);
+
+    if (!shipment_id || !current_status) {
+      return sendResponse(res, 400, false, "Invalid payload");
+    }
+
+    const returnRequest = await Return.findOne({ trackingId: shipment_id });
+
+    if (!returnRequest) {
+      return sendResponse(res, 404, false, "Return request not found");
+    }
+
+    if (current_status === "Pickup Completed") {
+      returnRequest.status = "Picked Up";
+      await returnRequest.save();
+      console.log("Return marked as Picked Up");
+    }
+
+    return sendResponse(res, 200, true, "Webhook processed");
+  } catch (err) {
+    console.error("Shiprocket Webhook Error:", err.message);
+    return sendResponse(res, 500, false, "Internal Server Error");
+  }
+};
+
 
 /**
  *
@@ -517,7 +646,7 @@ export const retunActionPerform = async (req, res) => {
       return sendResponse(res, 400, false, "Invalid action. Use 'approve' or 'reject'.");
     }
 
-    const returnRequest = await Return.findById(id);
+    const returnRequest = await Return.findById(id).populate("customerId");
 
     if (!returnRequest) {
       return sendResponse(res, 404, false, "Return request not found.");
@@ -541,7 +670,16 @@ export const retunActionPerform = async (req, res) => {
     returnRequest.status = "Approved";
     await returnRequest.save();
 
-    const order = await Order.findById(returnRequest.orderId);
+    const customerAddress = await CustomerAddress.findOne({
+      customerId: returnRequest.customerId._id,
+      is_deleted: false,
+      }).sort({ createdAt: -1 });
+
+    if (!customerAddress) {
+      return sendResponse(res, 404, false, "Customer address not found.");
+    }
+
+    const order = await Order.findById(returnRequest.orderId).populate('storeId').populate('sellerId');
     if (!order) {
       return sendResponse(res, 404, false, "Order not found.");
     }
@@ -550,11 +688,11 @@ export const retunActionPerform = async (req, res) => {
     let shipmentProviderName;
     if (paymentTypeId === 1) {
       // COD → Use Shiprocket
-      pickupInfo = await createShiprocketReversePickup(order, returnRequest);
+      pickupInfo = await createShiprocketReversePickup(order, returnRequest,customerAddress);
       shipmentProviderName = "Shiprocket"
     } else {
       // Online → Use Porter
-      pickupInfo = await createPorterReversePickup(order, returnRequest);
+      pickupInfo = await createPorterReversePickup(order, returnRequest,customerAddress);
       shipmentProviderName = "Porter"
     }
 
@@ -579,7 +717,6 @@ export const retunActionPerform = async (req, res) => {
     return sendResponse(res, 500, false, "Failed to perform return action.");
   }
 };
-
 
 /**
  *

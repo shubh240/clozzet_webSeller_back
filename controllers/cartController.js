@@ -6,6 +6,7 @@ import { ProductSize } from "../models/productSize.model.js";
 import { StoreInfo } from "../models/sellerStoreInfo.model.js";
 import { Coupon } from "../models/coupon.model.js";
 import mongoose from "mongoose";
+import { CouponUsage } from "../models/couponUsage.model.js";
 
 export const addToCart = async (req, res) => {
   try {
@@ -332,14 +333,36 @@ export const applyCouponToCart = async (req, res) => {
     const { cartId, couponCode } = req.body;
     const customerId = req.id;
 
-    if (!cartId || !couponCode) {
-      return sendResponse(res, 400, false, "cartId and couponCode are required");
+    if (!cartId) {
+      return sendResponse(res, 400, false, "cartId is required");
     }
     
     const cart = await Cart.findOne({ _id: cartId, customerId });
     if (!cart) {
       return sendResponse(res, 404, false, "Cart not found");
     }
+
+    const originalTotal =
+      cart.sub_total_amount +
+      cart.platform_fee +
+      cart.delivery_fee +
+      cart.cgst +
+      cart.sgst;
+
+    
+    if(!couponCode || couponCode.trim() === ""){
+      cart.couponCode = null;
+      cart.discountAmount = 0;
+      cart.total_amount = originalTotal;
+
+      await cart.save();
+
+      return sendResponse(res, 200, true, "Coupon removed", {
+          originalTotal,
+          discount: 0,
+          finalTotal: originalTotal,
+        });
+     }
 
     const coupon = await Coupon.findOne({
       couponCode: couponCode.toUpperCase(),
@@ -352,6 +375,24 @@ export const applyCouponToCart = async (req, res) => {
 
     if (!coupon) {
       return sendResponse(res, 404, false, "Invalid or expired coupon.");
+    }
+    if (coupon.usageLimit > 0 && coupon.currentUsagesCount >= coupon.usageLimit) {
+      return sendResponse(res, 400, false, "Coupon usage limit exceeded.");
+    }
+
+    if (coupon.usageLimitPerUser > 0) {
+      const userUsage = await CouponUsage.findOne({
+        couponId: coupon._id,
+        customerId,
+      });
+      if (userUsage && userUsage.usageCount >= coupon.usageLimitPerUser) {
+        return sendResponse(
+          res,
+          400,
+          false,
+          "You have already used this coupon the maximum allowed times."
+        );
+      }
     }
 
     if (cart.sub_total_amount < coupon.minOrderAmount) {
@@ -372,18 +413,12 @@ export const applyCouponToCart = async (req, res) => {
         discount = coupon.maxDiscountAmount;
       }
     }
-
-    const totalAmountAfterDiscount =
-      cart.sub_total_amount +
-      cart.platform_fee +
-      cart.delivery_fee +
-      cart.cgst +
-      cart.sgst -
-      discount;
+    const totalAmountAfterDiscount = originalTotal - discount;
 
     cart.couponCode = coupon.couponCode;
     cart.discountAmount = discount;
     cart.total_amount = totalAmountAfterDiscount;
+
     await cart.save();
 
     return sendResponse(res, 200, true, "Coupon applied", {

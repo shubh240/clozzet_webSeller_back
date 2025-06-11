@@ -101,25 +101,92 @@ export const createPorterShipment = async (order, store, customerAddress) => {
   }
 };
 
-export const createPorterReversePickup = async (order, returnRequest) => {
-  const response = await fetch("https://api.porter.in/reverse-pickup", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer YOUR_PORTER_TOKEN"
-    },
-    body: JSON.stringify({
-      pickup_address: returnRequest.pickupAddress,
-      drop_address: "Your warehouse address",
-      items: returnRequest.orderItemIds.map(id => ({
-        name: "Product",
-        quantity: 1
-      })),
-    }),
-  });
+export const createPorterReversePickup = async (order, returnRequest,customerAddress) => {
+  if (!process.env.PORTER_API_KEY || !process.env.PORTER_BASE_URL) {
+    throw new Error("Missing Porter API configuration");
+  }
 
-  const data = await response.json();
-  return {
-    trackingId: data.tracking_id
-  };
+  try {
+    const payload = {
+      request_id: `reverse_${order._id}`,
+      delivery_instructions: {
+        instructions_list: [
+          {
+            type: "text",
+            description: "Return pickup - Handle carefully",
+          },
+        ],
+      },
+      pickup_details: {
+        address: {
+          apartment_address: customerAddress?.type || "N/A",
+          street_address1: customerAddress?.address_line_1,
+          street_address2: customerAddress?.address_line_2 || "",
+          landmark: customerAddress?.landmark || "",
+          city: customerAddress?.city,
+          state: customerAddress?.state,
+          pincode: customerAddress?.pincode,
+          country: "India",
+          lat: customerAddress?.location?.coordinates[1],
+          lng: customerAddress?.location?.coordinates[0],
+          contact_details: {
+            name: returnRequest?.customerId?.fullName,
+            phone_number: `${returnRequest?.customerId?.countryCode}${returnRequest?.customerId?.mobileNo}`,
+          },
+        },
+      },
+      drop_details: {
+        address: {
+          apartment_address: order.storeId?.storeName || "Warehouse",
+          street_address1: order.storeId?.storeAddress,
+          street_address2: order.storeId?.city,
+          landmark: "",
+          city: order.storeId?.city,
+          state: order.storeId?.state,
+          pincode: order.storeId?.pincode,
+          country: "India",
+          lat: order.storeId?.position?.lat,
+          lng: order.storeId?.position?.lng,
+          contact_details: {
+            name: `${order.sellerId?.userInfo?.firstName} ${order.sellerId?.userInfo?.lastName}` ,
+            phone_number: `+91${order.sellerId?.userInfo?.mobileNo}`,
+          },
+        },
+      },
+    };
+    console.log('payload' ,payload);
+
+    const response = await axios.post(
+      `${process.env.PORTER_BASE_URL}/v1/orders/create`,
+      payload,
+      {
+        headers: {
+          "x-api-key": process.env.PORTER_API_KEY,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+
+    const data = response.data;
+
+    return {
+      success: true,
+      trackingId: data.order_id,
+      pickupAddress: payload.pickup_details.address,
+      pickupDate: new Date().toISOString(),
+    };
+  } catch (error) {
+    const porterErrorMessage =
+      error?.response?.data?.message ||
+      error?.response?.data?.error ||
+      error?.message ||
+      "Unknown Porter reverse pickup error";
+
+    return {
+      success: false,
+      error: porterErrorMessage,
+    };
+  }
 };
+

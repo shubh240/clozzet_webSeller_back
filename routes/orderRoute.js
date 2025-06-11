@@ -13,7 +13,9 @@ import {
   updateOrderStatusBySeller,
   getSellerReturnRequests,
   getCustomerReturnRequests,
-  retunActionPerform
+  retunActionPerform,
+  shiprocketWebhookHandler,
+  porterWebhookHandler
   // generateInvoice
 } from "../controllers/orderController.js";
 import isUserAuthenticated from "../middleware/isUserAuthenticated.js";
@@ -37,6 +39,8 @@ router.post("/return-order", isUserAuthenticated,  upload.fields([
 router.get("/list-sellerReturnOrder", isUserAuthenticated, getSellerReturnRequests);
 router.post("/retunActionPerform/:id", isUserAuthenticated, retunActionPerform);
 
+router.post("/shiprocket-webhook", shiprocketWebhookHandler);
+router.post("/porter-webhook", porterWebhookHandler);
 
 router.get("/list-customerReturnOrder", isUserAuthenticated, getCustomerReturnRequests);
 
