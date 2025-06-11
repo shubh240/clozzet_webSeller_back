@@ -15,7 +15,8 @@ import {
   getCustomerReturnRequests,
   retunActionPerform,
   shiprocketWebhookHandler,
-  porterWebhookHandler
+  porterWebhookHandler,
+  processRefund
   // generateInvoice
 } from "../controllers/orderController.js";
 import isUserAuthenticated from "../middleware/isUserAuthenticated.js";
@@ -41,6 +42,8 @@ router.post("/retunActionPerform/:id", isUserAuthenticated, retunActionPerform);
 
 router.post("/shiprocket-webhook", shiprocketWebhookHandler);
 router.post("/porter-webhook", porterWebhookHandler);
+
+router.post("/refund-payment/:id",isUserAuthenticated, processRefund);
 
 router.get("/list-customerReturnOrder", isUserAuthenticated, getCustomerReturnRequests);
 

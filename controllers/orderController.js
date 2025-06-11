@@ -13,6 +13,7 @@ import { calculateAndUpdateCartTotals } from "./cartController.js";
 import { ShipmentProvider } from "../models/shipmentProvider.model.js";
 import { createShiprocketShipment ,createShiprocketReversePickup } from "../provider/shiprocket.js";
 import { createPorterShipment ,createPorterReversePickup } from "../provider/porter.js";
+import { rezerpayRefundPayment } from "../provider/razorPay.js";
 import { StoreInfo } from "../models/sellerStoreInfo.model.js";
 import { Category } from "../models/category.model.js";
 import { Subcategory } from "../models/subCategories.model.js";
@@ -20,7 +21,7 @@ import { Customer } from "../models/customer.model.js";
 import { Color } from "../models/color.model.js";
 import { Refund } from "../models/refund.model.js";
 import { Return } from "../models/return.model.js";
-import { ReturnProduct } from "../models/retunProduct.model.js";
+import { ReturnProduct } from "../models/returnProduct.model.js";
 import { PaymentType } from "../models/paymentType.model.js";
 import { razorpay } from "../config/razorPay.js";
 import mongoose from 'mongoose';
@@ -518,6 +519,91 @@ export const shiprocketWebhookHandler = async (req, res) => {
   }
 };
 
+/**
+ * 
+ * @param {Refund} req 
+ * @param {*} res 
+ * @returns 
+ */
+export const processRefund = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { refundReason } = req.body;
+
+    const returnDoc = await Return.findById(id).populate("orderId");
+    if (!returnDoc) return sendResponse(res, 404, false, "Return not found");
+
+    const order = await Order.findById(returnDoc.orderId);
+    if (!order || order.paymentStatus !== "Success") {
+      return sendResponse(res, 400, false, "Refund not allowed. Order not paid.");
+    }
+    if (returnDoc.refundStatus === "Completed") {
+      return sendResponse(res, 400, false, "Refund already completed for this return.");
+    }
+    if (returnDoc.status !== "Picked Up") {
+      return sendResponse(res, 400, false, "Return must be in 'Picked Up' status before refund");
+    }
+
+    const returnProducts = await ReturnProduct.find({ returnId: id });
+
+    const orderItemIds = returnProducts.map(rp => rp.orderItemId);
+    const orderItems = await OrderItem.find({ _id: { $in: orderItemIds } });
+
+    if(!orderItems) return sendResponse(res, 400, false, "OrderItems not found");
+    const refundAmount = orderItems.reduce((total, item) => total + item.totalAmount, 0);
+
+    returnDoc.refundStatus = "Processing";
+    await returnDoc.save();
+
+    let refundData = null;
+    let refundStatus = "completed";
+    let refundResponse = "";
+
+    console.log('returnDoc' ,returnDoc)
+    if (order.paymentTypeId === 2) {
+      refundData = await rezerpayRefundPayment(returnDoc.orderId.transactionId, refundAmount);
+      refundStatus = refundData.status;
+      refundResponse = JSON.stringify(refundData);
+    } else if (order.paymentTypeId === 1) {
+      refundData = {
+        method: "COD",
+        info: "Manual refund via Wallet or UPI"
+      };
+      refundResponse = JSON.stringify(refundData);
+    } else {
+      return sendResponse(res, 400, false, "Invalid refund method");
+    }
+
+    const refund = await Refund.create({
+      orderId: returnDoc.orderId._id,
+      refundId: refundData.razorpayRefundId || `cod-${Date.now()}`,
+      refundAmount,
+      refundReason,
+      refundStatus,
+      refundResponse
+    });
+
+    returnDoc.status = "Completed";
+    returnDoc.refundStatus = "Completed";
+    returnDoc.refundId = refund._id;
+
+    await returnDoc.save();
+
+    await OrderItem.findByIdAndUpdate(orderItemId, {
+      isRefunded: true,
+      refundStatus: "Success",
+    });
+    
+    return sendResponse(res, 200, true, "Refund processed successfully", {
+      return: returnDoc,
+      refund
+    });
+
+  } catch (err) {
+    console.error(err);
+    return sendResponse(res, 500, false, "Refund processing failed", err);
+  }
+};
 
 /**
  *
