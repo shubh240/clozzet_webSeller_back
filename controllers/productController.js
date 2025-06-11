@@ -4,7 +4,7 @@ import { ProductImage } from "../models/productImage.model.js";
 import cloudinary from "../config/cloudinary.js";
 import fs from "fs";
 import mongoose from "mongoose";
-import {StoreInfo} from "../models/sellerStoreInfo.model.js";
+import { StoreInfo } from "../models/sellerStoreInfo.model.js";
 
 export const createProduct = async (req, res) => {
   try {
@@ -79,8 +79,11 @@ export const createProduct = async (req, res) => {
       }
     }
 
-    const store = await StoreInfo.findOne({ sellerAuthId: new mongoose.Types.ObjectId(sellerId) ,is_deleted: false }).select("_id");
-    
+    const store = await StoreInfo.findOne({
+      sellerAuthId: new mongoose.Types.ObjectId(sellerId),
+      is_deleted: false,
+    }).select("_id");
+
     // Create product
     const newProduct = await Product.create({
       name: name.trim(),
@@ -125,7 +128,15 @@ export const createProduct = async (req, res) => {
 
 export const getProducts = async (req, res) => {
   try {
-    const { search = "", category, brandName,storeId, page, limit, colors } = req.query;
+    const {
+      search = "",
+      category,
+      brandName,
+      storeId,
+      page,
+      limit,
+      colors,
+    } = req.query;
     const matchStage = {
       seller: new mongoose.Types.ObjectId(req.id),
       isDeleted: false,
@@ -677,7 +688,7 @@ export const universalProductList = async (req, res) => {
       page,
       limit,
       colors,
-      storeId
+      storeId,
     } = req.body;
 
     if (!city) {
@@ -748,7 +759,7 @@ export const universalProductList = async (req, res) => {
       );
       pipeline.push({
         $match: {
-          storeId: {$in :storeIdObjectIds},
+          storeId: { $in: storeIdObjectIds },
         },
       });
     }
@@ -875,7 +886,7 @@ export const universalProductList = async (req, res) => {
               },
             },
             {
-              $project: { _id: 1, storeName: 1  },
+              $project: { _id: 1, storeName: 1 },
             },
           ],
           as: "storeInfo",
@@ -884,7 +895,7 @@ export const universalProductList = async (req, res) => {
       {
         $addFields: {
           storeId: { $arrayElemAt: ["$storeInfo._id", 0] },
-    storeName: { $arrayElemAt: ["$storeInfo.storeName", 0] },
+          storeName: { $arrayElemAt: ["$storeInfo.storeName", 0] },
         },
       },
       {
@@ -938,7 +949,7 @@ export const universalProductList = async (req, res) => {
 
 export const homePageProductList = async (req, res) => {
   try {
-    const { page, limit } = req.query;
+    const { page, limit, category } = req.query;
 
     const parsedPage = parseInt(page);
     const parsedLimit = parseInt(limit);
@@ -946,6 +957,10 @@ export const homePageProductList = async (req, res) => {
     const matchStage = {
       isDeleted: false,
     };
+
+    if (category && mongoose.Types.ObjectId.isValid(category)) {
+      matchStage.category = new mongoose.Types.ObjectId(category);
+    }
 
     const pipeline = [
       { $match: matchStage },
@@ -1028,7 +1043,7 @@ export const homePageProductList = async (req, res) => {
               },
             },
             {
-              $project: { _id: 1, storeName: 1  },
+              $project: { _id: 1, storeName: 1 },
             },
           ],
           as: "storeInfo",
@@ -1045,7 +1060,7 @@ export const homePageProductList = async (req, res) => {
       {
         $addFields: {
           storeId: { $arrayElemAt: ["$storeInfo._id", 0] },
-    storeName: { $arrayElemAt: ["$storeInfo.storeName", 0] },
+          storeName: { $arrayElemAt: ["$storeInfo.storeName", 0] },
         },
       },
       {
