@@ -1,3 +1,8 @@
+import { OrderItem } from "../models/orderItems.model.js";
+import axios from "axios";
+import { ReturnProduct } from "../models/retunProduct.model.js";
+import mongoose from "mongoose";
+
 let tokenCache = null;
 
 export const getShiprocketToken =  async()=> {
@@ -76,26 +81,81 @@ export const createShiprocketShipment=  async(order, store, customerAddress)=> {
     }
 }
 
-export const createShiprocketReversePickup = async (order, returnRequest) => {
-  const response = await fetch("https://apiv2.shiprocket.in/v1/external/orders/create/return", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer YOUR_SHIPROCKET_TOKEN"
-    },
-    body: JSON.stringify({
-      order_id: order._id,
-      pickup_location: returnRequest.pickupAddress,
-      items: returnRequest.orderItemIds.map(id => ({
-        name: "Product Name",
-        quantity: 1
-      })),
-    }),
-  });
+export const createShiprocketReversePickup = async (order, returnRequest,customerAddress,parsedOrderItemIds) => {
+  try {
+    const token = await getShiprocketToken();
 
-  const data = await response.json();
-  return {
-    trackingId: data.shipment_id
-  };
+    const allOrderItems = await OrderItem.find({
+      orderId: new mongoose.Types.ObjectId(order._id),
+      _id: { $in: parsedOrderItemIds.map(id => new mongoose.Types.ObjectId(id)) },
+    });
+
+    if (!allOrderItems?.length) {
+      throw new Error("No order items found for reverse pickup.");
+    }
+
+    // Step 2: Build the order_items array
+    const orderItemsData = allOrderItems.map((item) => ({
+      name: item.productName || "Item",
+      sku: item.sku || "SKU",
+      units: item.quantity || 1,
+      selling_price: item.amountPerUnit || 100,
+    }));
+    
+    const shipmentData = {
+      order_id: `RETURN-${order.order_number}`,
+      order_date: new Date().toISOString().split("T")[0],
+      pickup_location: returnRequest.pickupAddress, // This should be the pickup location name, not full address
+
+      billing_customer_name: returnRequest.customerId?.fullName || "Customer",
+      billing_address: customerAddress?.address_line_1 || "Address Line 1",
+      billing_city: customerAddress?.city || "City",
+      billing_pincode: customerAddress?.pincode || "000000",
+      billing_state: customerAddress?.state || "State",
+      billing_country: "India",
+      billing_email: returnRequest.customerId?.email || "test@example.com",
+      billing_phone: `${returnRequest.customerId?.countryCode}${returnRequest.customerId?.mobileNo}` || "9999999999",
+
+      shipping_is_billing: true,
+      order_items: orderItemsData,
+
+      payment_method: order.paymentTypeId === 1 ? "COD" : "Prepaid",
+      sub_total: order.sub_total_amount || 100,
+
+      length: 10,
+      breadth: 10,
+      height: 10,
+      weight: 1,
+    };
+
+    console.log('shipmentData' ,shipmentData);
+
+    const response = await axios.post(
+      `${process.env.SHIPROCKET_BASE_URL}/orders/create/return`,
+      shipmentData,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    const data = response.data;
+
+    return {
+      success: true,
+      trackingId: data.shipment_id,
+      pickupAddress: shipmentData.pickup_location,
+      pickupDate: new Date().toISOString(),
+    };
+
+  } catch (error) {
+    console.error("Shiprocket reverse pickup error:", error.response?.data || error.message);
+    return {
+      success: false,
+      error: error.response?.data || error.message,
+    };
+  }
 };
+
 
