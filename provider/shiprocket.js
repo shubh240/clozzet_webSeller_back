@@ -1,6 +1,6 @@
 import { OrderItem } from "../models/orderItems.model.js";
 import axios from "axios";
-import { ReturnProduct } from "../models/retunProduct.model.js";
+import { ReturnProduct } from "../models/returnProduct.model.js";
 import mongoose from "mongoose";
 
 let tokenCache = null;
