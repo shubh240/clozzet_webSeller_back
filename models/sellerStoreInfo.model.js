@@ -6,6 +6,10 @@ const SellerStoreInfoSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    storeOn: {
+      type: Boolean,
+      default: false,
+    },
     storeAddress: {
       type: String,
       required: true,
