@@ -24,6 +24,8 @@ import { Return } from "../models/return.model.js";
 import { ReturnProduct } from "../models/returnProduct.model.js";
 import { PaymentType } from "../models/paymentType.model.js";
 import { razorpay } from "../config/razorPay.js";
+import { Exchange } from "../models/exchange.model.js";
+import { ExchangeProduct } from "../models/exchangeProduct.model.js";
 import mongoose from 'mongoose';
 import axios from 'axios';
 import { Coupon } from "../models/coupon.model.js";
@@ -606,6 +608,112 @@ export const processRefund = async (req, res) => {
 };
 
 /**
+ * 
+ * @param {Exchange} req 
+ * @param {*} res 
+ * @returns 
+ */
+export const exchangeProduct  = async(req,res)=>{
+  try {
+    const customerId = req.id;
+    const {
+      orderId,
+      orderItemIds,
+      newSizeIds,
+      reason,
+      description
+    } = req.body;
+
+    let parsedOrderItemIds;
+    let parsedNewSizeIds;
+    try {
+      parsedOrderItemIds = typeof orderItemIds === "string" ? JSON.parse(orderItemIds) : orderItemIds;
+      parsedNewSizeIds = typeof newSizeIds === "string" ? JSON.parse(newSizeIds) : newSizeIds;
+    } catch (err) {
+      return sendResponse(res, 400, false, "orderItemIds & parsedNewSizeIds must be a valid JSON array.");
+    }
+
+    if (!Array.isArray(parsedOrderItemIds) || parsedOrderItemIds.length === 0) {
+      return sendResponse(res, 400, false, "orderItemIds must be a non-empty array.");
+    }
+
+    if (!Array.isArray(parsedNewSizeIds) || parsedNewSizeIds.length === 0) {
+      return sendResponse(res, 400, false, "sizeId's must be a non-empty array.");
+    }
+
+    if (!orderId || !parsedOrderItemIds || !parsedNewSizeIds || !reason) {
+      return sendResponse(res, 400, false, "All required fields must be filled");
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) return sendResponse(res, 404, false, "Order not found");
+
+    if (order.paymentStatus !== "Success") {
+      return sendResponse(res, 400, false, "Cannot exchange unpaid order");
+    }
+
+    if (order.orderStatus !== "Delivered") {
+      return sendResponse(res, 400, false, "Your order is not delivered yet");
+    }
+
+    let primaryImageUrl = null;
+    if (req.files && req.files["image"]) {
+      const imagePath = req.files["image"][0].path;
+      const imageResult = await cloudinary.uploader.upload(imagePath, {
+        folder: "uploads/exchangeOrder/images",
+        resource_type: "image",
+      });
+      primaryImageUrl = imageResult.secure_url;
+      fs.unlinkSync(imagePath);
+    }
+
+    const exchangeDoc = await Exchange.create({
+      orderId,
+      customerId,
+      storeId: order.storeId,
+      sellerId: order.sellerId,
+      reason,
+      description,
+      image : primaryImageUrl,
+    });
+
+    const exchangeProducts = parsedOrderItemIds.map((orderItemId, i) => ({
+      exchangeId: exchangeDoc._id,
+      orderItemId,
+      newSizeId: parsedNewSizeIds[i],
+    }));
+    await ExchangeProduct.insertMany(exchangeProducts);
+
+    const customerAddress = await CustomerAddress.findById(order.customerAddressId);
+    if (!customerAddress) return sendResponse(res, 404, false, "Customer address not found");
+
+    let pickupInfo, shipmentProviderName;
+    if (order.paymentTypeId === 1) {
+      pickupInfo = await createShiprocketReversePickup(order, exchangeDoc, customerAddress, orderItemIds);
+      shipmentProviderName = "Shiprocket";
+    } else {
+      pickupInfo = await createPorterReversePickup(order, exchangeDoc, customerAddress);
+      shipmentProviderName = "Porter";
+    }
+
+    const shipmentProvider = await ShipmentProvider.findOne({ name: shipmentProviderName });
+    exchangeDoc.shipmentProviderId = shipmentProvider?._id || null;
+    exchangeDoc.trackingId = pickupInfo?.trackingId || null;
+    exchangeDoc.pickupDate = pickupInfo?.pickup_scheduled_date || null;
+    exchangeDoc.pickupAddress = `${customerAddress?.address_line_1}, ${customerAddress.city}`;
+    exchangeDoc.status = "Pickup Initiated";
+    exchangeDoc.response = JSON.stringify(pickupInfo);
+    await exchangeDoc.save();
+
+    return sendResponse(res, 200, true, "Exchange initiated successfully", exchangeDoc);
+  } catch (error) {
+    console.error(error);
+    return sendResponse(res, 500, false, error.message);
+  }
+}
+
+
+/**
  *
  * List Return Order (Seller-Side)
  *
@@ -717,6 +825,121 @@ export const getCustomerReturnRequests = async (req, res) => {
   }
 };
 
+/**
+ *
+ * List Exchange Order (Customer-Side)
+ *
+ */
+export const getCustomerExchanges = async (req, res) => {
+  try {
+    const customerId = req.id;
+
+    const exchanges = await Exchange.find({ customerId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const result = [];
+
+    for (const ex of exchanges) {
+      const exchangeProducts = await ExchangeProduct.find({ exchangeId: ex._id }).lean();
+
+      const products = [];
+
+      for (const item of exchangeProducts) {
+        const orderItem = await OrderItem.findById(item.orderItemId).lean();
+        if (!orderItem) continue;
+
+        const product = await Product.findById(orderItem.productId).lean();
+        if (!product) continue;
+
+        const oldSizeDoc = await ProductSize.findById(orderItem.productSizeId).lean();
+        const newSizeDoc = await ProductSize.findById(item.newSizeId).lean();
+
+        products.push({
+          productName: product.productName,
+          oldSize: oldSizeDoc?.size || "",
+          newSize: newSizeDoc?.size || "",
+        });
+      }
+
+      result.push({
+        _id: ex._id,
+        status: ex.status,
+        reason: ex.reason,
+        description: ex.description,
+        image: ex.image,
+        trackingId: ex.trackingId,
+        pickupDate: ex.pickupDate,
+        pickupAddress: ex.pickupAddress,
+        createdAt: ex.createdAt,
+        products,
+      });
+    }
+
+    return sendResponse(res, 200, true, "Customer exchange list", result);
+  } catch (error) {
+    console.error(error);
+    return sendResponse(res, 500, false, error.message);
+  }
+};
+
+/**
+ *
+ * List Exchange Order (Seller-Side)
+ *
+ */
+export const getSellerExchanges = async (req, res) => {
+  try {
+    const sellerId = req.id;
+
+    const exchanges = await Exchange.find({ sellerId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const result = [];
+
+    for (const ex of exchanges) {
+      const exchangeProducts = await ExchangeProduct.find({ exchangeId: ex._id }).lean();
+
+      const products = [];
+
+      for (const item of exchangeProducts) {
+        const orderItem = await OrderItem.findById(item.orderItemId).lean();
+        if (!orderItem) continue;
+
+        const product = await Product.findById(orderItem.productId).lean();
+        if (!product) continue;
+
+        const oldSizeDoc = await ProductSize.findById(orderItem.sizeId).lean();
+        const newSizeDoc = await ProductSize.findById(item.newSizeId).lean();
+
+        products.push({
+          productName: product.productName,
+          oldSize: oldSizeDoc?.size || "",
+          newSize: newSizeDoc?.size || "",
+        });
+      }
+
+      result.push({
+        _id: ex._id,
+        status: ex.status,
+        reason: ex.reason,
+        description: ex.description,
+        image: ex.image,
+        trackingId: ex.trackingId,
+        pickupDate: ex.pickupDate,
+        pickupAddress: ex.pickupAddress,
+        createdAt: ex.createdAt,
+        products,
+      });
+    }
+
+    return sendResponse(res, 200, true, "Seller exchange list", result);
+  } catch (error) {
+    console.error(error);
+    return sendResponse(res, 500, false, error.message);
+  }
+};
 /**
  *
  * Accept-Reject Return Order (Seller-Side)

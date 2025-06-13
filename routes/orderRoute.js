@@ -16,7 +16,10 @@ import {
   retunActionPerform,
   shiprocketWebhookHandler,
   porterWebhookHandler,
-  processRefund
+  processRefund,
+  exchangeProduct,
+  getCustomerExchanges,
+  getSellerExchanges
   // generateInvoice
 } from "../controllers/orderController.js";
 import isUserAuthenticated from "../middleware/isUserAuthenticated.js";
@@ -24,28 +27,47 @@ import isUserAuthenticated from "../middleware/isUserAuthenticated.js";
 
 const router = express.Router();
 
+/**
+ * Manage Orders
+ */
 router.post("/create-order", isUserAuthenticated, createOrder);
 router.put("/update-order-status/:orderId", isUserAuthenticated, updateOrderStatusBySeller);
 router.post("/list-order", isUserAuthenticated, listOrders);
 router.get("/order-details/:orderId", isUserAuthenticated, getOrderDetails);
 
-
+/**
+ * RazorPay
+ */
 router.post("/create-razorpay-order", isUserAuthenticated, createRazorpayOrder);
 router.post("/verify-payment", isUserAuthenticated, verifyPayment);
 
-
+/**
+ * Return & Exchange & Refund
+ */
 router.post("/return-order", isUserAuthenticated,  upload.fields([
     { name: "image", maxCount: 1 }
   ]), returnOrder);
+router.post("/exchange-product", isUserAuthenticated,  upload.fields([
+    { name: "image", maxCount: 1 }
+  ]), exchangeProduct);
+router.post("/refund-payment/:id",isUserAuthenticated, processRefund);
+
+
 router.get("/list-sellerReturnOrder", isUserAuthenticated, getSellerReturnRequests);
+router.get("/list-sellerExchangeOrder", isUserAuthenticated, getSellerExchanges);
 router.post("/retunActionPerform/:id", isUserAuthenticated, retunActionPerform);
 
+/**
+ * Webhook for Shiprocket & Porter
+ */
 router.post("/shiprocket-webhook", shiprocketWebhookHandler);
 router.post("/porter-webhook", porterWebhookHandler);
 
-router.post("/refund-payment/:id",isUserAuthenticated, processRefund);
-
+/**
+ * Customer side list Return & Exchange
+ */
 router.get("/list-customerReturnOrder", isUserAuthenticated, getCustomerReturnRequests);
+router.get("/list-customerExchangeOrder", isUserAuthenticated, getCustomerExchanges);
 
 router.post("/create-shipment", isUserAuthenticated, createShipment);
 
