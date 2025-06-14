@@ -46,7 +46,7 @@ export const createShiprocketShipment=  async(order, store, customerAddress)=> {
             shipping_is_billing: true,
             order_items: order.order_items.map(item => ({
             name: item.productName,
-            sku: item.sku,
+            sku: item.productSizeId ? ( ProductSize.findById(item.productSizeId)).sku : item.sku,
             units: item.quantity,
             selling_price: item.amount_per_unit,
             })),
@@ -97,7 +97,7 @@ export const createShiprocketReversePickup = async (order, returnRequest,custome
     // Step 2: Build the order_items array
     const orderItemsData = allOrderItems.map((item) => ({
       name: item.productName || "Item",
-      sku: item.sku || "SKU",
+      sku: item.productSizeId ? ( ProductSize.findById(item.productSizeId)).sku : "SKU",// Fallback to SKU if productSizeId not found
       units: item.quantity || 1,
       selling_price: item.amountPerUnit || 100,
     }));
