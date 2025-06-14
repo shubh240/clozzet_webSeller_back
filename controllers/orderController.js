@@ -92,7 +92,7 @@ export const createOrder = async (req, res) => {
         productSizeId: cp.sizeId,
         categoryId: product.category,
         subcategoryId: product.subcategory,
-        sku: product.sku,
+        sku: productSize.sku,
         productName: product.name,
         productSize: productSize?.size,
         productImage: product.image,
@@ -1579,7 +1579,11 @@ export const listOrders = async (req, res) => {
           .populate({ path: "color", select: "name image" })
           .populate({
             path: "productId",
-            select: "name primaryImage sku description sellingPrice",
+            select: "name primaryImage description sellingPrice",
+          })
+          .populate({
+            path: "productSizeId",
+            select: "sku",
           })
           .lean();
 
@@ -1648,8 +1652,12 @@ export const getOrderDetails = async (req, res) => {
       .populate({ path: "subcategoryId", select: "name" })
       .populate({ path: "color", select: "name image" })
       .populate({
-        path: "productId",
-        select: "name primaryImage sku description sellingPrice",
+            path: "productId",
+            select: "name primaryImage description sellingPrice",
+          })
+      .populate({
+        path: "productSizeId",
+        select: "sku",
       })
       .lean();
 

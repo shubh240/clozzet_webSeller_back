@@ -7,6 +7,11 @@ const ProductSizeSchema = new mongoose.Schema(
       ref: "Product",
       required: true,
     },
+    sku: {
+      type: String,
+      required: true,
+      unique: true,
+    },
     size: {
       type: String,
       required: true,

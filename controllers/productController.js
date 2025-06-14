@@ -10,7 +10,6 @@ export const createProduct = async (req, res) => {
   try {
     const {
       name,
-      sku,
       description,
       category,
       subcategory,
@@ -25,7 +24,6 @@ export const createProduct = async (req, res) => {
     // 🔍 Validate required fields
     if (
       !name ||
-      !sku ||
       !description ||
       !category ||
       !subcategory ||
@@ -35,16 +33,6 @@ export const createProduct = async (req, res) => {
       !colors
     ) {
       return sendResponse(res, 400, false, "All fields are required");
-    }
-    // Check for existing SKU
-    const existingProduct = await Product.findOne({ sku });
-    if (existingProduct) {
-      return sendResponse(
-        res,
-        400,
-        false,
-        "Product with this SKU already exists"
-      );
     }
 
     let primaryImageUrl = "";
@@ -87,7 +75,6 @@ export const createProduct = async (req, res) => {
     // Create product
     const newProduct = await Product.create({
       name: name.trim(),
-      sku: sku.trim(),
       brandName: brandName.trim(),
       description: description.trim(),
       category,
@@ -511,7 +498,6 @@ export const updateProduct = async (req, res) => {
 
     const {
       name,
-      sku,
       description,
       category,
       subcategory,
@@ -538,7 +524,7 @@ export const updateProduct = async (req, res) => {
     };
 
     if (name) updatedFields.name = name;
-    if (sku) updatedFields.sku = sku;
+
     if (description) updatedFields.description = description;
     if (mongoose.isValidObjectId(category)) updatedFields.category = category;
     if (mongoose.isValidObjectId(subcategory))
