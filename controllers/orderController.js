@@ -32,6 +32,8 @@ import { Coupon } from "../models/coupon.model.js";
 import { CouponUsage } from "../models/couponUsage.model.js";
 import cloudinary from "../config/cloudinary.js";
 import fs from "fs";
+import { sendCustomerNotification, sendSellerNotification } from "../utils/firebase-admin.js";
+import { SellerUserAuth } from "../models/sellerUserInfo.model.js";
 
 /**
  *
@@ -134,7 +136,26 @@ export const createOrder = async (req, res) => {
     }));
     await OrderItem.insertMany(itemsToInsert);
 
-    
+    // Send notifications for new order
+    const customer = await Customer.findById(cart.customerId);
+    if (customer && customer.fcmToken) {
+      await sendCustomerNotification(customer.fcmToken, {
+        title: "New Order Placed",
+        body: `Your order #${newOrder.orderNumber} has been placed successfully!`,
+        data: { orderId: newOrder._id }
+      }, customer._id);
+    }
+
+    // Send notification to seller
+    const seller = await SellerUserAuth.findById(cart.sellerId);
+    if (seller && seller.fcmToken) {
+      await sendSellerNotification(seller.fcmToken, {
+        title: "New Order Received",
+        body: `You received a new order #${newOrder.orderNumber}!`,
+        data: { orderId: newOrder._id }
+      }, seller._id);
+    }
+
     /**
      * Handle Coupon Usage Count
      */
@@ -212,17 +233,34 @@ export const updateOrderStatusBySeller = async (req, res) => {
       return sendResponse(res, 400, false, "Status must be either 'Accepted' or 'Rejected'");
     }
 
-    const order = await Order.findById(orderId);
-    if (!order) {
-      return sendResponse(res, 404, false, "Order not found");
-    }
+    const order = await Order.findByIdAndUpdate(
+      orderId,
+      { status: status },
+      { new: true }
+    );
 
-    if (order.orderStatus !== "Pending") {
-      return sendResponse(res, 400, false, "Only pending orders can be updated");
-    }
+    // Send status update notifications
+    if (order) {
+      // Send to customer
+      const customer = await Customer.findById(order.customerId);
+      if (customer && customer.fcmToken) {
+        await sendCustomerNotification(customer.fcmToken, {
+          title: `Order Status Updated`,
+          body: `Your order #${order.orderNumber} status is now ${status}`,
+          data: { orderId: order._id, status: status }
+        }, customer._id);
+      }
 
-    order.orderStatus = status;
-    await order.save();
+      // Send to seller
+      const seller = await SellerUserAuth.findById(order.sellerId);
+      if (seller && seller.fcmToken) {
+        await sendSellerNotification(seller.fcmToken, {
+          title: `Order Status Updated`,
+          body: `Order #${order.orderNumber} status is now ${status}`,
+          data: { orderId: order._id, status: status }
+        }, seller._id);
+      }
+    }
 
     return sendResponse(res, 200, true, `Order ${status.toLowerCase()} successfully`, order);
   } catch (error) {
@@ -230,7 +268,6 @@ export const updateOrderStatusBySeller = async (req, res) => {
     return sendResponse(res, 500, false, "Something went wrong");
   }
 };
-
 
 /**
  *
@@ -241,7 +278,6 @@ export const createRazorpayOrder = async (req, res) => {
   try {
     const { orderId } = req.body;
     if (!orderId) return sendResponse(res, 400, false, "orderId is required");
-    console.log('orderId',orderId);
     
     const order = await Order.findById(orderId);
     if (!order) return sendResponse(res, 404, false, "Order not found");
@@ -255,7 +291,6 @@ export const createRazorpayOrder = async (req, res) => {
     };
 
     const rzpOrder = await razorpay.orders.create(options);
-    console.log('rzpOrder :- ?',rzpOrder);
     
     const data = {
       razorpayOrderId: rzpOrder.id,
@@ -316,6 +351,33 @@ export const verifyPayment = async (req, res) => {
       paymentStatus: "Success",
       paymentError: "",
     });
+
+    // Update order status to paid
+    await Order.findByIdAndUpdate(orderId, { status: "paid" });
+
+    // Send payment confirmation notifications
+    const order = await Order.findById(orderId);
+    if (order) {
+      // Notify customer
+      const customer = await Customer.findById(order.customerId);
+      if (customer && customer.fcmToken) {
+        await sendCustomerNotification(customer.fcmToken, {
+          title: "Payment Successful",
+          body: `Your payment for order #${order.orderNumber} has been successful`,
+          data: { orderId: order._id }
+        }, customer._id);
+      }
+
+      // Notify seller
+      const seller = await SellerUserAuth.findById(order.sellerId);
+      if (seller && seller.fcmToken) {
+        await sendSellerNotification(seller.fcmToken, {
+          title: "Payment Received",
+          body: `You received payment for order #${order.orderNumber}`,
+          data: { orderId: order._id }
+        }, seller._id);
+      }
+    }
 
     return sendResponse(res, 200, true, "Payment verified successfully");
   } catch (error) {
@@ -394,6 +456,26 @@ export const returnOrder = async(req,res)=>{
       status: "Requested",
       refundStatus: "Pending"
     });
+
+    // Send return request notification to seller
+    const seller = await SellerUserAuth.findById(order.sellerId);
+    if (seller && seller.fcmToken) {
+      await sendSellerNotification(seller.fcmToken, {
+        title: "Return Request Received",
+        body: `New return request for order #${orderId}`,
+        data: { orderId: orderId, returnId: returnRequest._id }
+      }, seller._id);
+    }
+
+    // Send confirmation to customer
+    const customer = await Customer.findById(req.user._id);
+    if (customer && customer.fcmToken) {
+      await sendCustomerNotification(customer.fcmToken, {
+        title: "Return Request Submitted",
+        body: `Your return request for order #${orderId} has been submitted`,
+        data: { orderId: orderId, returnId: returnRequest._id }
+      }, customer._id);
+    }
 
     const returnProducts = parsedOrderItemIds.map(itemId => ({
       returnId: returnRequest._id,
@@ -475,6 +557,30 @@ export const porterWebhookHandler = async (req, res) => {
 
       returnRequest.status = "Picked Up";
       await returnRequest.save();
+
+      // Send pickup completed notifications
+      const order = await Order.findById(returnRequest.orderId);
+      if (order) {
+        // Notify customer
+        const customer = await Customer.findById(order.customerId);
+        if (customer && customer.fcmToken) {
+          await sendCustomerNotification(customer.fcmToken, {
+            title: "Return Picked Up",
+            body: `Your return for order #${order.orderNumber} has been picked up`,
+            data: { orderId: order._id, returnId: returnRequest._id }
+          }, customer._id);
+        }
+
+        // Notify seller
+        const seller = await SellerUserAuth.findById(order.sellerId);
+        if (seller && seller.fcmToken) {
+          await sendSellerNotification(seller.fcmToken, {
+            title: "Return Picked Up",
+            body: `Return for order #${order.orderNumber} has been picked up`,
+            data: { orderId: order._id, returnId: returnRequest._id }
+          }, seller._id);
+        }
+      }
 
       return sendResponse(res, 200, true, "Pickup marked as completed");
     }
@@ -585,13 +691,59 @@ export const processRefund = async (req, res) => {
       refundResponse
     });
 
+    // Send refund initiated notification
+    if (order) {
+      // Notify customer
+      const customer = await Customer.findById(order.customerId);
+      if (customer && customer.fcmToken) {
+        await sendCustomerNotification(customer.fcmToken, {
+          title: "Refund Initiated",
+          body: `Refund of ₹${refundAmount} has been initiated for order #${order.orderNumber}`,
+          data: { orderId: order._id, refundId: refund._id }
+        }, customer._id);
+      }
+
+      // Notify seller
+      const seller = await SellerUserAuth.findById(order.sellerId);
+      if (seller && seller.fcmToken) {
+        await sendSellerNotification(seller.fcmToken, {
+          title: "Refund Initiated",
+          body: `Refund of ₹${refundAmount} has been initiated for order #${order.orderNumber}`,
+          data: { orderId: order._id, refundId: refund._id }
+        }, seller._id);
+      }
+    }
+
     returnDoc.status = "Completed";
     returnDoc.refundStatus = "Completed";
     returnDoc.refundId = refund._id;
 
     await returnDoc.save();
 
-    await OrderItem.findByIdAndUpdate(orderItemId, {
+    // Send refund completed notification
+    if (order) {
+      // Notify customer
+      const customer = await Customer.findById(order.customerId);
+      if (customer && customer.fcmToken) {
+        await sendCustomerNotification(customer.fcmToken, {
+          title: "Refund Completed",
+          body: `Refund of ₹${refundAmount} has been successfully processed for order #${order.orderNumber}`,
+          data: { orderId: order._id, refundId: refund._id }
+        }, customer._id);
+      }
+
+      // Notify seller
+      const seller = await SellerUserAuth.findById(order.sellerId);
+      if (seller && seller.fcmToken) {
+        await sendSellerNotification(seller.fcmToken, {
+          title: "Refund Completed",
+          body: `Refund of ₹${refundAmount} has been successfully processed for order #${order.orderNumber}`,
+          data: { orderId: order._id, refundId: refund._id }
+        }, seller._id);
+      }
+    }
+
+    await OrderItem.findByIdAndUpdate(orderItemIds, {
       isRefunded: true,
       refundStatus: "Success",
     });
@@ -667,6 +819,18 @@ export const exchangeProduct  = async(req,res)=>{
       fs.unlinkSync(imagePath);
     }
 
+    // Fetch all valid size entries
+    const productSizes = await ProductSize.find({
+      _id: { $in: parsedNewSizeIds },
+      quantity: { $gt: 0 },
+      isDeleted: false,
+    });
+
+    // If size check fails
+    if (productSizes.length !== parsedNewSizeIds.length) {
+      return sendResponse(res, 400, false, "One or more selected sizes are out of stock or invalid.");
+    }
+    
     const exchangeDoc = await Exchange.create({
       orderId,
       customerId,
@@ -676,6 +840,7 @@ export const exchangeProduct  = async(req,res)=>{
       description,
       image : primaryImageUrl,
     });
+
 
     const exchangeProducts = parsedOrderItemIds.map((orderItemId, i) => ({
       exchangeId: exchangeDoc._id,
@@ -711,6 +876,86 @@ export const exchangeProduct  = async(req,res)=>{
     return sendResponse(res, 500, false, error.message);
   }
 }
+
+/**
+ * 
+ * @param {*updateExchangeStatus} req 
+ * @param {*} res 
+ * @returns 
+ */
+export const updateExchangeStatus = async (req, res) => {
+  try {
+    const { trackingId } = req.body;
+
+    if (!trackingId) return sendResponse(res, 400, false, "Tracking ID is required");
+
+    const exchange = await Exchange.findOne({ trackingId });
+
+    if (!exchange) return sendResponse(res, 404, false, "Exchange not found with this tracking ID");
+
+    if (exchange.status === "Picked Up") {
+      return sendResponse(res, 400, false, "Exchange is already marked as Picked Up");
+    }
+
+    const exchangeProducts = await ExchangeProduct.find({ exchangeId: exchange._id });
+
+    // Loop over each exchanged product and update new size stock
+    for (const item of exchangeProducts) {
+      const productSize = await ProductSize.findById(item.newSizeId);
+
+      if (!productSize) {
+        return sendResponse(res, 404, false, `Size not found for item ${item._id}`);
+      }
+
+      if (productSize.quantity <= 0) {
+        return sendResponse(res, 400, false, `Size '${productSize.size}' is out of stock`);
+      }
+
+      productSize.quantity -= 1;
+      await productSize.save();
+    }
+
+    exchange.status = "Picked Up";
+    await exchange.save();
+
+    return sendResponse(res, 200, true, "Exchange status updated and size stock adjusted", exchange);
+  } catch (error) {
+    console.error("Error updating exchange status:", error);
+    return sendResponse(res, 500, false, "Failed to update exchange status");
+  }
+};
+
+/**
+ * 
+ * @param {Exchange webhook} req 
+ * @param {*} res 
+ * @returns 
+ */
+export const handleExchangeWebhook = async (req, res) => {
+  try {
+    const payload = req.body;
+
+    let trackingId;
+
+    // Detect webhook type
+    if (payload.shipment_id && payload.status === "Pickup Completed") {
+      // Shiprocket webhook
+      trackingId = payload.shipment_id;
+    } else if (payload.data?.tracking_id && payload.data?.status === "pickup_completed") {
+      // Porter webhook
+      trackingId = payload.data.tracking_id;
+    } else {
+      return sendResponse(res, 400, false, "Invalid or unhandled webhook");
+    }
+
+    // Call exchange status update
+    req.body.trackingId = trackingId;
+    await updateExchangeStatus(req, res); // handles response itself
+  } catch (err) {
+    console.error("Webhook error:", err);
+    return sendResponse(res, 500, false, err.message);
+  }
+};
 
 
 /**
@@ -891,9 +1136,19 @@ export const getCustomerExchanges = async (req, res) => {
 export const getSellerExchanges = async (req, res) => {
   try {
     const sellerId = req.id;
+    const { page, limit } = req.query;
+
+    const total = await Exchange.countDocuments({sellerId});
+
+    const currentPage = Number(page) || 1;
+    const perPage = Number(limit) || total || 1; // fallback to total if 0
+    const totalPages = Math.ceil(total / perPage);
+    const skip = (currentPage - 1) * perPage;
 
     const exchanges = await Exchange.find({ sellerId })
       .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(perPage)
       .lean();
 
     const result = [];
@@ -910,7 +1165,7 @@ export const getSellerExchanges = async (req, res) => {
         const product = await Product.findById(orderItem.productId).lean();
         if (!product) continue;
 
-        const oldSizeDoc = await ProductSize.findById(orderItem.sizeId).lean();
+        const oldSizeDoc = await ProductSize.findById(orderItem.productSizeId).lean();
         const newSizeDoc = await ProductSize.findById(item.newSizeId).lean();
 
         products.push({
@@ -934,7 +1189,15 @@ export const getSellerExchanges = async (req, res) => {
       });
     }
 
-    return sendResponse(res, 200, true, "Seller exchange list", result);
+    return sendResponse(res, 200, true, "Seller exchange list", {
+      result,
+      pagination: {
+        total,
+        page: currentPage,
+        limit: perPage,
+        totalPages,
+      }
+    });
   } catch (error) {
     console.error(error);
     return sendResponse(res, 500, false, error.message);
@@ -1019,6 +1282,29 @@ export const retunActionPerform = async (req, res) => {
     returnRequest.pickupDate = pickupInfo.pickupDate;
        
     await returnRequest.save();
+
+    // Send pickup initiated notifications
+    if (order) {
+      // Notify customer
+      const customer = await Customer.findById(order.customerId);
+      if (customer && customer.fcmToken) {
+        await sendCustomerNotification(customer.fcmToken, {
+          title: "Return Pickup Initiated",
+          body: `Your return pickup for order #${order.orderNumber} has been initiated`,
+          data: { orderId: order._id, returnId: returnRequest._id }
+        }, customer._id);
+      }
+
+      // Notify seller
+      const seller = await SellerUserAuth.findById(order.sellerId);
+      if (seller && seller.fcmToken) {
+        await sendSellerNotification(seller.fcmToken, {
+          title: "Return Pickup Initiated",
+          body: `Return pickup for order #${order.orderNumber} has been initiated`,
+          data: { orderId: order._id, returnId: returnRequest._id }
+        }, seller._id);
+      }
+    }
 
     return sendResponse(res, 200, true, `Return request approved and pickup initiated.`, returnRequest);
   } catch (err) {
@@ -1107,6 +1393,29 @@ export const createShipment = async (req, res) => {
         "https://app.shiprocket.in/orders/view/123456789",
     });
 
+    // Send shipment created notifications
+    if (order) {
+      // Notify customer
+      const customer = await Customer.findById(order.customerId);
+      if (customer && customer.fcmToken) {
+        await sendCustomerNotification(customer.fcmToken, {
+          title: "Shipment Created",
+          body: `Your order #${order.orderNumber} is ready for shipment`,
+          data: { orderId: order._id, shipmentId: shipment._id }
+        }, customer._id);
+      }
+
+      // Notify seller
+      const seller = await SellerUserAuth.findById(order.sellerId);
+      if (seller && seller.fcmToken) {
+        await sendSellerNotification(seller.fcmToken, {
+          title: "Shipment Created",
+          body: `Order #${order.orderNumber} is ready for shipment`,
+          data: { orderId: order._id, shipmentId: shipment._id }
+        }, seller._id);
+      }
+    }
+
     return sendResponse(res, 201, true, "Shipment created", shipment);
   } catch (error) {
     console.error("Create Shipment error:", error.message);
@@ -1134,46 +1443,88 @@ export const trackShipments = async () => {
             },
           }
         );
-
-        trackingData = {
-          status: response.data.status,
-          location: response.data.current_location,
-          description: response.data.description,
-        };
+        trackingData = response.data;
+        console.log('Porter tracking data',trackingData);
       } else {
         // Shiprocket API
         const response = await axios.get(
-          `https://apiv2.shiprocket.in/v1/external/courier/track?awb=${shipment.trackingId}`,
+          `https://apiv2.shiprocket.in/v1/external/courier/track/awb/${shipment.trackingId}`,
           {
             headers: {
-              Authorization: `Bearer ${process.env.SHIPROCKET_TOKEN}`,
+              Authorization: `Bearer ${process.env.SHIPROCKET_API_KEY}`,
             },
           }
         );
-
-        const trackInfo = response.data.tracking_data.track_status;
-        trackingData = {
-          status: trackInfo,
-          location: response.data.tracking_data.current_status_location,
-          description: response.data.tracking_data.etd || "Status update",
-        };
+        trackingData = response.data;
+        console.log('Shiprocket tracking data',trackingData);
       }
 
-      if (trackingData) {
-        await Shipment.updateOne(
-          { _id: shipment._id },
-          { currentStatus: trackingData.status }
-        );
-
-        await ShipmentHistory.create({
-          shipmentId: shipment._id,
-          currentStatus: trackingData.status,
-          location: trackingData.location || "Unknown",
-          description: trackingData.description,
+      // Update shipment status
+      const currentStatus = trackingData.status || trackingData.current_status;
+      if (currentStatus !== shipment.currentStatus) {
+        await Shipment.findByIdAndUpdate(shipment._id, {
+          currentStatus,
+          lastUpdated: new Date(),
+          trackingData
         });
 
-        console.log(`Updated tracking for order: ${shipment.orderId}`);
+        // Update order status based on shipment status
+        const order = await Order.findById(shipment.orderId);
+        if (order) {
+          if (currentStatus === 'OUT_FOR_DELIVERY') {
+            await Order.findByIdAndUpdate(order._id, { status: 'out_for_delivery' });
+            
+            // Send out for delivery notification
+            const customer = await Customer.findById(order.customerId);
+            if (customer && customer.fcmToken) {
+              await sendCustomerNotification(customer.fcmToken, {
+                title: "Order Out for Delivery",
+                body: `Your order #${order.orderNumber} is out for delivery`,
+                data: { orderId: order._id, shipmentId: shipment._id }
+              }, customer._id);
+            }
+
+            const seller = await SellerUserAuth.findById(order.sellerId);
+            if (seller && seller.fcmToken) {
+              await sendSellerNotification(seller.fcmToken, {
+                title: "Order Out for Delivery",
+                body: `Order #${order.orderNumber} is out for delivery`,
+                data: { orderId: order._id, shipmentId: shipment._id }
+              }, seller._id);
+            }
+          } else if (currentStatus === 'DELIVERED') {
+            await Order.findByIdAndUpdate(order._id, { status: 'delivered' });
+            
+            // Send delivered notification
+            const customer = await Customer.findById(order.customerId);
+            if (customer && customer.fcmToken) {
+              await sendCustomerNotification(customer.fcmToken, {
+                title: "Order Delivered",
+                body: `Your order #${order.orderNumber} has been delivered successfully`,
+                data: { orderId: order._id, shipmentId: shipment._id }
+              }, customer._id);
+            }
+
+            const seller = await SellerUserAuth.findById(order.sellerId);
+            if (seller && seller.fcmToken) {
+              await sendSellerNotification(seller.fcmToken, {
+                title: "Order Delivered",
+                body: `Order #${order.orderNumber} has been delivered successfully`,
+                data: { orderId: order._id, shipmentId: shipment._id }
+              }, seller._id);
+            }
+          }
+        }
       }
+
+      await ShipmentHistory.create({
+        shipmentId: shipment._id,
+        currentStatus: currentStatus,
+        location: trackingData.location || "Unknown",
+        description: trackingData.description,
+      });
+
+      console.log(`Updated tracking for order: ${shipment.orderId}`);
     } catch (err) {
       console.error(`Tracking failed for shipment ${shipment._id}:`, err.message);
     }

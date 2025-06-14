@@ -19,7 +19,8 @@ import {
   processRefund,
   exchangeProduct,
   getCustomerExchanges,
-  getSellerExchanges
+  getSellerExchanges,
+  handleExchangeWebhook
   // generateInvoice
 } from "../controllers/orderController.js";
 import isUserAuthenticated from "../middleware/isUserAuthenticated.js";
@@ -62,6 +63,8 @@ router.post("/retunActionPerform/:id", isUserAuthenticated, retunActionPerform);
  */
 router.post("/shiprocket-webhook", shiprocketWebhookHandler);
 router.post("/porter-webhook", porterWebhookHandler);
+
+router.post("/exchange-pickup-status", handleExchangeWebhook);
 
 /**
  * Customer side list Return & Exchange
