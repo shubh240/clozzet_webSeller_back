@@ -4,16 +4,21 @@ import { ProductSize } from "../models/productSize.model.js";
 
 export const createProductSize = async (req, res) => {
     try {
-      const { productId, size, quantity } = req.body;
+      const { productId, size,sku, quantity } = req.body;
       const sellerId = req.id;
   
-      if (!productId || !size || !quantity) {
+      if (!productId || !size || !quantity || !sku) {
         return sendResponse(res, 400, false, "Product ID, size, and quantity are required.");
       }
   
+      // const existSku = await ProductSize.find({sku});
+      // if (existSku) {
+      //   return sendResponse(res, 400, false, "Sku with this product size is already exists");
+      // }
       const newProductSize = await ProductSize.create({
         productId,
         size,
+        sku,
         quantity,
         createdBy: sellerId,
       });
@@ -54,7 +59,7 @@ export const getProductSizes = async (req, res) => {
 export const updateProductSize = async (req, res) => {
     try {
       const { id } = req.params;
-      const { size, quantity } = req.body;
+      const { size,sku, quantity } = req.body;
       const sellerId = req.id;
   
       if (!mongoose.isValidObjectId(id)) {
@@ -67,6 +72,7 @@ export const updateProductSize = async (req, res) => {
       }
   
       productSize.size = size || productSize.size;
+      productSize.sku = sku || productSize.sku;
       productSize.quantity = quantity || productSize.quantity;
       productSize.updatedBy = sellerId;
   
