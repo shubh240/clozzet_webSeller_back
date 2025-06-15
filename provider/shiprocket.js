@@ -5,89 +5,247 @@ import mongoose from "mongoose";
 
 let tokenCache = null;
 
-export const getShiprocketToken =  async()=> {
-
-  if (!process.env.SHIPROCKET_EMAIL || !process.env.SHIPROCKET_PASSWORD || !process.env.SHIPROCKET_BASE_URL) {
-    throw new Error('Shiprocket credentials not found in environment variables');
+export const getShiprocketToken = async () => {
+  if (
+    !process.env.SHIPROCKET_EMAIL ||
+    !process.env.SHIPROCKET_PASSWORD ||
+    !process.env.SHIPROCKET_BASE_URL
+  ) {
+    throw new Error(
+      "Shiprocket credentials not found in environment variables"
+    );
   }
 
   if (tokenCache) return tokenCache;
 
   try {
-    const response = await axios.post(`${process.env.SHIPROCKET_BASE_URL}/auth/login`, {
+    const response = await axios.post(
+      `${process.env.SHIPROCKET_BASE_URL}/auth/login`,
+      {
         email: process.env.SHIPROCKET_EMAIL,
         password: process.env.SHIPROCKET_PASSWORD,
-    });
+      }
+    );
 
     tokenCache = response.data.token;
     return tokenCache;
   } catch (error) {
-    console.error('Shiprocket token error:', error.response?.data || error.message);
-    throw new Error('Failed to get Shiprocket token');
+    console.error(
+      "Shiprocket token error:",
+      error.response?.data || error.message
+    );
+    throw new Error("Failed to get Shiprocket token");
   }
-}
+};
 
-export const createShiprocketShipment=  async(order, store, customerAddress)=> {
-    try {
-        const token = await getShiprocketToken();
+export const createShiprocketShipment = async (
+  order,
+  store,
+  customerAddress
+) => {
+  try {
+    const token = await getShiprocketToken();
 
-        const shipmentData = {
-            order_id: order.order_number,
-            order_date: new Date(order.createdAt).toISOString().split('T')[0],
-            pickup_location: store.storeName,
-            billing_customer_name: customerAddress.name,
-            billing_address: customerAddress.addressLine1,
-            billing_city: customerAddress.city,
-            billing_pincode: customerAddress.pincode,
-            billing_state: customerAddress.state,
-            billing_country: 'India',
-            billing_email: customerAddress.email || 'test@example.com',
-            billing_phone: customerAddress.phone || '9999999999',
-            shipping_is_billing: true,
-            order_items: order.order_items.map(item => ({
-            name: item.productName,
-            sku: item.productSizeId ? ( ProductSize.findById(item.productSizeId)).sku : item.sku,
-            units: item.quantity,
-            selling_price: item.amount_per_unit,
-            })),
-            payment_method: order.paymentTypeId === 1 ? 'COD' : 'Prepaid',
-            sub_total: order.sub_total_amount,
-            length: 10,
-            breadth: 10,
-            height: 10,
-            weight: 1,
-        };
+    const billingCustomerName = customerAddress?.name || "Vivek";
+    const billingAddress =
+      customerAddress?.addressLine1 || "A1 502 kala darshan apartment";
+    const billingCity = customerAddress?.city || "Ahmedabad";
+    const billingPincode = customerAddress?.pincode || "380015";
+    const billingState = customerAddress?.state || "Gujarat";
 
-        const response = await axios.post(
-            `${process.env.SHIPROCKET_BASE_URL}/orders/create/adhoc`,
-            shipmentData,
-            {
-            headers: {
-                Authorization: `Bearer ${token}`,
-            },
-            }
-        );
+    const shipmentData = {
+      order_id: order.orderNumber,
+      order_date: new Date(order.createdAt).toISOString().split("T")[0],
+      pickup_location: "VentureStudio, Ahmedabad University", 
 
-        const resData = response.data;
-        return {
-            tracking_id: resData.order_id || '',
-            tracking_url: resData.shipment_id ? `https://app.shiprocket.in/orders/view/${resData.shipment_id}` : '',
-            raw: JSON.stringify(resData),
-        };
-        
-    } catch (error) {
-        console.error('Shiprocket shipment error:', error.response?.data || error.message);
-        throw new Error('Failed to create shipment with Shiprocket');   
-    }
-}
+      shipping_is_billing: true, // <-- change this
+      shipping_customer_name: billingCustomerName,
+      shipping_address: billingAddress,
+      shipping_city: billingCity,
+      shipping_pincode: billingPincode,
+      shipping_state: billingState.toUpperCase(),
+      shipping_country: "India",
+      shipping_email: customerAddress?.email || "jatin@clozzetindia.com",
+      shipping_phone: customerAddress?.phone || "6351635713",
 
-export const createShiprocketReversePickup = async (order, returnRequest,customerAddress,parsedOrderItemIds) => {
+      payment_method: order.paymentTypeId === 1 ? "COD" : "Prepaid",
+      sub_total: order.subTotalAmount,
+      length: 10,
+      breadth: 10,
+      height: 10,
+      weight: 0.5, // try this
+    };
+
+    console.log(
+      "✅ Final shipmentData:",
+      JSON.stringify(shipmentData, null, 2)
+    );
+
+    const response = await axios.post(
+      `${process.env.SHIPROCKET_BASE_URL}/orders/create/adhoc`,
+      shipmentData,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    const resData = response.data;
+    return {
+      tracking_id: resData.order_id || "",
+      tracking_url: resData.shipment_id
+        ? `https://app.shiprocket.in/orders/view/${resData.shipment_id}`
+        : "",
+      raw: JSON.stringify(resData),
+    };
+  } catch (error) {
+    console.error(
+      "🚨 Shiprocket shipment error:",
+      error.response?.data || error.message
+    );
+    throw new Error("Failed to create shipment with Shiprocket");
+  }
+};
+
+export const createShiprocketShipmentOld2 = async (
+  order,
+  store,
+  customerAddress
+) => {
+  try {
+    const token = await getShiprocketToken();
+    console.log(customerAddress);
+    const shipmentData = {
+      order_id: order.order_number,
+      order_date: new Date(order.createdAt).toISOString().split("T")[0],
+      pickup_location: store.storeName,
+      billing_customer_name: customerAddress.name,
+      billing_address: customerAddress.addressLine1,
+      billing_city: customerAddress.city,
+      billing_pincode: customerAddress.pincode,
+      billing_state: customerAddress.state,
+      billing_country: "India",
+      billing_email: customerAddress.email || "test@example.com",
+      billing_phone: customerAddress.phone || "9999999999",
+      shipping_is_billing: true,
+      payment_method: order.paymentTypeId === 1 ? "COD" : "Prepaid",
+      sub_total: order.sub_total_amount,
+      length: 10,
+      breadth: 10,
+      height: 10,
+      weight: 1,
+    };
+    console.log(
+      "Sending to Shiprocket:",
+      JSON.stringify(shipmentData, null, 2)
+    );
+
+    const response = await axios.post(
+      `${process.env.SHIPROCKET_BASE_URL}/orders/create/adhoc`,
+      shipmentData,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    const resData = response.data;
+    return {
+      tracking_id: resData.order_id || "",
+      tracking_url: resData.shipment_id
+        ? `https://app.shiprocket.in/orders/view/${resData.shipment_id}`
+        : "",
+      raw: JSON.stringify(resData),
+    };
+  } catch (error) {
+    console.error(
+      "Shiprocket shipment error:",
+      error.response?.data || error.message
+    );
+    throw new Error("Failed to create shipment with Shiprocket");
+  }
+};
+
+export const createShiprocketShipmentOld = async (
+  order,
+  store,
+  customerAddress
+) => {
+  try {
+    const token = await getShiprocketToken();
+
+    const shipmentData = {
+      order_id: order.order_number,
+      order_date: new Date(order.createdAt).toISOString().split("T")[0],
+      pickup_location: store.storeName,
+      billing_customer_name: customerAddress.name,
+      billing_address: customerAddress.addressLine1,
+      billing_city: customerAddress.city,
+      billing_pincode: customerAddress.pincode,
+      billing_state: customerAddress.state,
+      billing_country: "India",
+      billing_email: customerAddress.email || "test@example.com",
+      billing_phone: customerAddress.phone || "9999999999",
+      shipping_is_billing: true,
+      order_items: order.order_items.map((item) => ({
+        name: item.productName,
+        sku: item.productSizeId
+          ? ProductSize.findById(item.productSizeId).sku
+          : item.sku,
+        units: item.quantity,
+        selling_price: item.amount_per_unit,
+      })),
+      payment_method: order.paymentTypeId === 1 ? "COD" : "Prepaid",
+      sub_total: order.sub_total_amount,
+      length: 10,
+      breadth: 10,
+      height: 10,
+      weight: 1,
+    };
+
+    const response = await axios.post(
+      `${process.env.SHIPROCKET_BASE_URL}/orders/create/adhoc`,
+      shipmentData,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    const resData = response.data;
+    return {
+      tracking_id: resData.order_id || "",
+      tracking_url: resData.shipment_id
+        ? `https://app.shiprocket.in/orders/view/${resData.shipment_id}`
+        : "",
+      raw: JSON.stringify(resData),
+    };
+  } catch (error) {
+    console.error(
+      "Shiprocket shipment error:",
+      error.response?.data || error.message
+    );
+    throw new Error("Failed to create shipment with Shiprocket");
+  }
+};
+
+export const createShiprocketReversePickup = async (
+  order,
+  returnRequest,
+  customerAddress,
+  parsedOrderItemIds
+) => {
   try {
     const token = await getShiprocketToken();
 
     const allOrderItems = await OrderItem.find({
       orderId: new mongoose.Types.ObjectId(order._id),
-      _id: { $in: parsedOrderItemIds.map(id => new mongoose.Types.ObjectId(id)) },
+      _id: {
+        $in: parsedOrderItemIds.map((id) => new mongoose.Types.ObjectId(id)),
+      },
     });
 
     if (!allOrderItems?.length) {
@@ -97,11 +255,13 @@ export const createShiprocketReversePickup = async (order, returnRequest,custome
     // Step 2: Build the order_items array
     const orderItemsData = allOrderItems.map((item) => ({
       name: item.productName || "Item",
-      sku: item.productSizeId ? ( ProductSize.findById(item.productSizeId)).sku : "SKU",// Fallback to SKU if productSizeId not found
+      sku: item.productSizeId
+        ? ProductSize.findById(item.productSizeId).sku
+        : "SKU", // Fallback to SKU if productSizeId not found
       units: item.quantity || 1,
       selling_price: item.amountPerUnit || 100,
     }));
-    
+
     const shipmentData = {
       order_id: `RETURN-${order.order_number}`,
       order_date: new Date().toISOString().split("T")[0],
@@ -114,7 +274,9 @@ export const createShiprocketReversePickup = async (order, returnRequest,custome
       billing_state: customerAddress?.state || "State",
       billing_country: "India",
       billing_email: returnRequest.customerId?.email || "test@example.com",
-      billing_phone: `${returnRequest.customerId?.countryCode}${returnRequest.customerId?.mobileNo}` || "9999999999",
+      billing_phone:
+        `${returnRequest.customerId?.countryCode}${returnRequest.customerId?.mobileNo}` ||
+        "9999999999",
 
       shipping_is_billing: true,
       order_items: orderItemsData,
@@ -128,7 +290,7 @@ export const createShiprocketReversePickup = async (order, returnRequest,custome
       weight: 1,
     };
 
-    console.log('shipmentData' ,shipmentData);
+    console.log("shipmentData", shipmentData);
 
     const response = await axios.post(
       `${process.env.SHIPROCKET_BASE_URL}/orders/create/return`,
@@ -148,14 +310,14 @@ export const createShiprocketReversePickup = async (order, returnRequest,custome
       pickupAddress: shipmentData.pickup_location,
       pickupDate: new Date().toISOString(),
     };
-
   } catch (error) {
-    console.error("Shiprocket reverse pickup error:", error.response?.data || error.message);
+    console.error(
+      "Shiprocket reverse pickup error:",
+      error.response?.data || error.message
+    );
     return {
       success: false,
       error: error.response?.data || error.message,
     };
   }
 };
-
-

@@ -1352,17 +1352,17 @@ export const createShipment = async (req, res) => {
     
 
     let shipmentResponse;
-    // if (shipmentProvider.name === 'Shiprocket') {
-    //   shipmentResponse = await createShiprocketShipment(order, store, customerAddress);
-    // } else {
-    //   shipmentResponse = await createPorterShipment(order, store, customerAddress);
-    // }
+    if (shipmentProvider.name === 'Shiprocket') {
+      shipmentResponse = await createShiprocketShipment(order, store, customerAddress);
+    } else {
+      shipmentResponse = await createPorterShipment(order, store, customerAddress);
+    }
 
-    shipmentResponse = await createPorterShipment(
-      order,
-      store,
-      customerAddress
-    );
+    // shipmentResponse = await createPorterShipment(
+    //   order,
+    //   store,
+    //   customerAddress
+    // );
 
     const shipment = await Shipment.create({
       orderId: order._id,
