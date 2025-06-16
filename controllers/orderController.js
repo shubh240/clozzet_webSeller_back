@@ -59,6 +59,14 @@ export const createOrder = async (req, res) => {
     if (!cart) return sendResponse(res, 404, false, "Cart not found");
 
     /**
+     * Store In-Active (cannot place order)
+     */
+    const store = await StoreInfo.findById(cart.storeId);
+    if (!store || !store.isActive) {
+      return sendResponse(res, 400, false, "Store is inactive, cannot place order");
+    }
+
+    /**
      * Get Cart Products
      */
     const cartProducts = await CartProduct.find({ cartId: cart._id });
