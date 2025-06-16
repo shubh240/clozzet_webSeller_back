@@ -112,6 +112,7 @@ export const createOrder = async (req, res) => {
      */
     const orderNumber = "ORD-" + Date.now();
     const newOrder = await Order.create({
+      cartId,
       storeId: cart?.storeId,
       sellerId: cart?.sellerId,
       customerId: cart?.customerId,
@@ -197,10 +198,12 @@ export const createOrder = async (req, res) => {
     }
 
     /**
-     * Clear Cart
+     * Clear Cart (only delete when payment is COD)
      */
-    await CartProduct.deleteMany({ cartId: cart._id });
-    await Cart.findByIdAndDelete({ _id: cart._id });
+    if(paymentTypeId === 1){
+      await CartProduct.deleteMany({ cartId: cart._id });
+      await Cart.findByIdAndDelete({ _id: cart._id });
+    }
 
     const data = {
       orderId: newOrder._id,
@@ -357,6 +360,8 @@ export const verifyPayment = async (req, res) => {
 
     // Send payment confirmation notifications
     const order = await Order.findById(orderId);
+    if (!order) return sendResponse(res, 404, false, "Order not found");
+
     if (order) {
       // Notify customer
       const customer = await Customer.findById(order.customerId);
@@ -378,7 +383,14 @@ export const verifyPayment = async (req, res) => {
         }, seller._id);
       }
     }
-
+    /**
+     * Clear Cart
+     */
+    if (order.cartId) {
+      await CartProduct.deleteMany({ cartId: order.cartId });
+      await Cart.findByIdAndDelete(order.cartId);
+    }
+    
     return sendResponse(res, 200, true, "Payment verified successfully");
   } catch (error) {
     console.error("Razorpay verification error:", error.message);
