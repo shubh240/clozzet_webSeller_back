@@ -235,7 +235,7 @@ export const updateOrderStatusBySeller = async (req, res) => {
 
     const order = await Order.findByIdAndUpdate(
       orderId,
-      { status: status },
+      { orderStatus: status },
       { new: true }
     );
 
@@ -1599,7 +1599,7 @@ export const listOrders = async (req, res) => {
         const paymentType = await PaymentType.findOne({
           indexNumber: order.paymentTypeId,
           isDeleted: false,
-        });
+        }).lean();
 
         return {
           ...order,
@@ -1661,14 +1661,25 @@ export const getOrderDetails = async (req, res) => {
       })
       .lean();
 
-    const enrichedItems = items.map((item) => ({
-      ...item,
-      productImage: item.productId?.primaryImage || null,
-      categoryName: item.categoryId?.name || null,
-      subcategoryName: item.subcategoryId?.name || null,
-      colorName: item.color?.name || null,
-      colorImage: item.color?.image || null,
+       const enrichedItems = await Promise.all(items.map(async (item) => {
+      const proSizes = await ProductSize.find({
+        productId: item.productId?._id,
+        isDeleted: false
+      })
+        .select("size sku quantity")
+        .lean();
+
+      return {
+        ...item,
+        productImage: item.productId?.image || null,
+        categoryName: item.categoryId?.name || null,
+        subcategoryName: item.subcategoryId?.name || null,
+        colorName: item.color?.name || null,
+        colorImage: item.color?.image || null,
+        proSizes: proSizes || [],
+      };
     }));
+
 
     const paymentType = await PaymentType.findOne({
       indexNumber: order.paymentTypeId,
