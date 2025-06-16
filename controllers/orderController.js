@@ -468,7 +468,7 @@ export const returnOrder = async(req,res)=>{
     }
 
     // Send confirmation to customer
-    const customer = await Customer.findById(req.user._id);
+    const customer = await Customer.findById(req.id);
     if (customer && customer.fcmToken) {
       await sendCustomerNotification(customer.fcmToken, {
         title: "Return Request Submitted",
@@ -502,15 +502,15 @@ export const returnOrder = async(req,res)=>{
     let pickupInfo;
     let shipmentProviderName;
 
-    if (paymentTypeId === 1) {
-      // COD → Use Shiprocket
-      pickupInfo = await createShiprocketReversePickup(order, returnRequest, customerAddress,parsedOrderItemIds);
-      shipmentProviderName = "Shiprocket";
-    } else {
+    // if (paymentTypeId === 1) {
+    //   // COD → Use Shiprocket
+    //   pickupInfo = await createShiprocketReversePickup(order, returnRequest, customerAddress,parsedOrderItemIds);
+    //   shipmentProviderName = "Shiprocket";
+    // } else {
       // Online → Use Porter
       pickupInfo = await createPorterReversePickup(order, returnRequest, customerAddress);
       shipmentProviderName = "Porter";
-    }
+    // }
     const shipmentProvider = await ShipmentProvider.findOne({ name: shipmentProviderName });
 
     if (!pickupInfo.success) {
