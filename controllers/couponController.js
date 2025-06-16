@@ -231,3 +231,49 @@ export const getCustomerCoupons = async (req, res) => {
     return sendResponse(res, 500, false, err.message);
   }
 };
+
+export const homepageOffers = async (req, res) => {
+  try {
+    const { page, limit, storeId } = req.query;
+
+    const match = {
+      is_deleted: false,
+      isActive: true,
+      validFrom: { $lte: new Date() },
+      validTill: { $gte: new Date() },
+    };
+
+    if (storeId) {
+      match.storeId = new mongoose.Types.ObjectId(storeId);
+    }
+    const total = await Coupon.countDocuments(match);
+    const currentPage = parseInt(page) || 1;
+    const perPage = parseInt(limit) || total || 1000;
+    const totalPages = Math.ceil(total / perPage);
+    const skip = (currentPage - 1) * perPage;
+
+    const aggregationPipeline = [
+      { $match: match },
+      { $sample: { size: total || 1000 } }, // Randomize
+    ];
+
+    if (page && limit) {
+      aggregationPipeline.push({ $skip: skip }, { $limit: perPage });
+    }
+
+    const offers = await Coupon.aggregate(aggregationPipeline);
+
+    return sendResponse(res, 200, true, "Homepage offers fetched successfully", {
+      offers,
+      pagination: {
+        total,
+        page: currentPage,
+        limit: perPage,
+        totalPages,
+      },
+    });
+    } catch (error) {
+    console.error("Error fetching homepage offers:", error);
+    return sendResponse(res, 500, false, "Internal server error");
+  }
+};
