@@ -5,7 +5,8 @@ import {
   getCustomerCoupons,
   getCouponById,
   updateCoupon,
-  deleteCoupon
+  deleteCoupon,
+  homepageOffers
 } from "../controllers/couponController.js";
 import isUserAuthenticated from "../middleware/isUserAuthenticated.js";
 import upload from "../middleware/multer.middleware.js";
@@ -27,5 +28,7 @@ router.delete("/delete-coupon/:id",isUserAuthenticated, deleteCoupon);
 
 //customer-fetching coupons
 router.get("/list-customer-coupon", getCustomerCoupons); 
+
+router.get("/homepage-offers",isUserAuthenticated, homepageOffers);
 
 export default router;
