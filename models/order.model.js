@@ -2,6 +2,10 @@ import mongoose from "mongoose";
 
 const orderSchema = new mongoose.Schema(
   {
+    cartId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Cart",
+    },
     storeId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "StoreInfo",
