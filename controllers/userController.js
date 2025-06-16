@@ -97,7 +97,10 @@ export const loginseller = async (req, res) => {
       return sendResponse(res, 404, false, "Seller not found");
     }
 
-    const storeInfo = await StoreInfo.findOne({sellerAuthId : new mongoose.Types.ObjectId(user._id) }).select('_id storeName')
+    const storeInfo = await StoreInfo.findOne({sellerAuthId : new mongoose.Types.ObjectId(user._id) }).select('_id storeName isActive')
+    if (!storeInfo || !storeInfo.isActive) {
+      return sendResponse(res, 403, false, "Store is inactive. Contact admin.");
+    }
 
     const isMatch = await bcrypt.compare(password, user.userAuth.password);
     if (!isMatch) {
