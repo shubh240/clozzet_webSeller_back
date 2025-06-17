@@ -1560,7 +1560,7 @@ export const trackShipments = async () => {
 export const listOrders = async (req, res) => {
   try {
     const { page, limit, customerId, sellerId, storeId, search } = req.body;
-    const match = {};
+    const match = {paymentStatus : 'Success'};
 
     if (customerId) match.customerId = customerId;
     if (sellerId) match.sellerId = new mongoose.Types.ObjectId(sellerId);
