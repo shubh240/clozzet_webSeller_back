@@ -20,7 +20,8 @@ import {
   exchangeProduct,
   getCustomerExchanges,
   getSellerExchanges,
-  handleExchangeWebhook
+  handleExchangeWebhook,
+  porterWebhook
   // generateInvoice
 } from "../controllers/orderController.js";
 import isUserAuthenticated from "../middleware/isUserAuthenticated.js";
@@ -61,8 +62,9 @@ router.post("/retunActionPerform/:id", isUserAuthenticated, retunActionPerform);
 /**
  * Webhook for Shiprocket & Porter
  */
-router.post("/shiprocket-webhook", shiprocketWebhookHandler);
-router.post("/porter-webhook", porterWebhookHandler);
+router.post("/shiprocket-webhook-handler", shiprocketWebhookHandler);
+router.post("/porter-webhook-handler", porterWebhookHandler);
+router.post("/porter-webhook", porterWebhook);
 
 router.post("/exchange-pickup-status", handleExchangeWebhook);
 

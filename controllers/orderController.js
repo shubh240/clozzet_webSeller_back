@@ -688,7 +688,20 @@ export const porterWebhookHandler = async (req, res) => {
   }
 };
 
+export const porterWebhook = async (req, res) => {
+  try {
+    const payload = req.body;
 
+    const { order_id, status, order_details } = payload;
+
+    console.log(payload);
+
+    return sendResponse(res, 200, true, "No action needed");
+  } catch (err) {
+    console.error("Porter Webhook Error:", err);
+    return sendResponse(res, 500, false, "Internal server error");
+  }
+};
 /**
  * @param {*} req
  * @param {*} res Shiprocketwebhook

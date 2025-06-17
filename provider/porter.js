@@ -127,8 +127,8 @@ export const createPorterReversePickup = async (order, returnRequest,customerAdd
           state: customerAddress?.state,
           pincode: customerAddress?.pincode,
           country: "India",
-          lat: customerAddress?.location?.coordinates[1],
-          lng: customerAddress?.location?.coordinates[0],
+          lat: customerAddress?.location?.coordinates[0],
+          lng: customerAddress?.location?.coordinates[1],
           contact_details: {
             name: returnRequest?.customerId?.fullName,
             phone_number: `${returnRequest?.customerId?.countryCode}${returnRequest?.customerId?.mobileNo}`,
