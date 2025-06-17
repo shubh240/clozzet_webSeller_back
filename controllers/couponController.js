@@ -1,6 +1,6 @@
 import { Coupon } from "../models/coupon.model.js";
 import { StoreInfo } from "../models/sellerStoreInfo.model.js";
-import { sendResponse } from "../common/index.js";
+import { sendResponse,roundToTwo } from "../common/index.js";
 import mongoose from "mongoose";
 import cloudinary from "../config/cloudinary.js";
 import fs from "fs";
@@ -103,9 +103,9 @@ export const createCoupon = async (req, res) => {
       description,
       couponCode,
       discountType,
-      discountValue,
-      minOrderAmount,
-      maxDiscountAmount,
+      discountValue : roundToTwo(discountValue),
+      minOrderAmount : roundToTwo(minOrderAmount),
+      maxDiscountAmount : roundToTwo(maxDiscountAmount),
       usageLimit,
       usageLimitPerUser,
       validFrom,

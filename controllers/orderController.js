@@ -8,7 +8,7 @@ import { CustomerAddress } from "../models/customerAddres.model.js";
 import { Shipment } from "../models/shipment.model.js";
 import { ShipmentHistory } from "../models/shipmentHistory.model.js";
 import { v4 as uuidv4 } from "uuid";
-import { sendResponse } from "../common/index.js";
+import { sendResponse ,roundToTwo } from "../common/index.js";
 import { calculateAndUpdateCartTotals } from "./cartController.js";
 import { ShipmentProvider } from "../models/shipmentProvider.model.js";
 import { createShiprocketShipment ,createShiprocketReversePickup } from "../provider/shiprocket.js";
@@ -105,8 +105,8 @@ export const createOrder = async (req, res) => {
         productSize: productSize?.size,
         productImage: product.image,
         quantity: cp.quantity,
-        amountPerUnit: amountPerUnit,
-        totalAmount: total,
+        amountPerUnit: roundToTwo(amountPerUnit),
+        totalAmount: roundToTwo(total),
         color: product.colors._id
       });
 
@@ -127,15 +127,15 @@ export const createOrder = async (req, res) => {
       customerAddressId,
       paymentTypeId,
       orderNumber,
-      subTotalAmount: cart?.sub_total_amount,
-      platformFee: cart?.platform_fee || 0,
-      deliveryFee: cart?.delivery_fee || 0,
+      subTotalAmount: roundToTwo(cart?.sub_total_amount),
+      platformFee: roundToTwo(cart?.platform_fee) || 0,
+      deliveryFee: roundToTwo(cart?.delivery_fee) || 0,
       couponCode : cart?.couponCode,
-      discountAmount : cart?.discountAmount,
-      cgst : cart?.cgst || 0,
-      sgst : cart?.sgst || 0,
-      sgst : cart?.sgst || 0,
-      totalAmount: cart?.total_amount || 0,
+      discountAmount : roundToTwo(cart?.discountAmount),
+      cgst : roundToTwo(cart?.cgst) || 0,
+      sgst : roundToTwo(cart?.sgst) || 0,
+      sgst : roundToTwo(cart?.sgst) || 0,
+      totalAmount: roundToTwo(cart?.total_amount) || 0,
       paymentStatus: paymentTypeId === 1 ? "Success" : "Pending",
     });
 
@@ -217,7 +217,7 @@ export const createOrder = async (req, res) => {
       orderId: newOrder._id,
       orderNumber: newOrder.orderNumber,
       paymentTypeId,
-      totalAmount: newOrder.totalAmount,
+      totalAmount: roundToTwo(newOrder.totalAmount),
     };
     return sendResponse(res, 201, true, "Order created successfully", data);
   } catch (error) {
@@ -381,7 +381,7 @@ export const createRazorpayOrder = async (req, res) => {
     
     const data = {
       razorpayOrderId: rzpOrder.id,
-      amount: options.amount,
+      amount: roundToTwo(options.amount),
       currency: options.currency,
       key: process.env.RAZORPAY_KEY_ID,
       orderId: order._id,
@@ -794,7 +794,7 @@ export const processRefund = async (req, res) => {
     const refund = await Refund.create({
       orderId: returnDoc.orderId._id,
       refundId: refundData.razorpayRefundId || `cod-${Date.now()}`,
-      refundAmount,
+      refundAmount : roundToTwo(refundAmount),
       refundReason,
       refundStatus,
       refundResponse
@@ -807,7 +807,7 @@ export const processRefund = async (req, res) => {
       if (customer && customer.fcmToken) {
         await sendCustomerNotification(customer.fcmToken, {
           title: "Refund Initiated",
-          body: `Refund of ₹${refundAmount} has been initiated for order #${order.orderNumber}`,
+          body: `Refund of ₹${roundToTwo(refundAmount)} has been initiated for order #${order.orderNumber}`,
           data: { orderId: order._id, refundId: refund._id }
         }, customer._id);
       }
@@ -817,7 +817,7 @@ export const processRefund = async (req, res) => {
       if (seller && seller.fcmToken) {
         await sendSellerNotification(seller.fcmToken, {
           title: "Refund Initiated",
-          body: `Refund of ₹${refundAmount} has been initiated for order #${order.orderNumber}`,
+          body: `Refund of ₹${roundToTwo(refundAmount)} has been initiated for order #${order.orderNumber}`,
           data: { orderId: order._id, refundId: refund._id }
         }, seller._id);
       }
@@ -836,7 +836,7 @@ export const processRefund = async (req, res) => {
       if (customer && customer.fcmToken) {
         await sendCustomerNotification(customer.fcmToken, {
           title: "Refund Completed",
-          body: `Refund of ₹${refundAmount} has been successfully processed for order #${order.orderNumber}`,
+          body: `Refund of ₹${roundToTwo(refundAmount)} has been successfully processed for order #${order.orderNumber}`,
           data: { orderId: order._id, refundId: refund._id }
         }, customer._id);
       }
@@ -846,7 +846,7 @@ export const processRefund = async (req, res) => {
       if (seller && seller.fcmToken) {
         await sendSellerNotification(seller.fcmToken, {
           title: "Refund Completed",
-          body: `Refund of ₹${refundAmount} has been successfully processed for order #${order.orderNumber}`,
+          body: `Refund of ₹${roundToTwo(refundAmount)} has been successfully processed for order #${order.orderNumber}`,
           data: { orderId: order._id, refundId: refund._id }
         }, seller._id);
       }
