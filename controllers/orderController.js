@@ -514,6 +514,9 @@ export const returnOrder = async(req,res)=>{
 
     const order = await Order.findById(orderId).populate("storeId").populate("sellerId");
     if(!order) return sendResponse(res, 400, false,"Order not found.");
+    if (!order.storeId || order.storeId.is_deleted || order.storeId.isActive === false) {
+      return sendResponse(res, 403, false, "Return request not allowed. Store is inactive or deleted.");
+    }
     if(order.orderStatus !== "Delivered") return sendResponse(res, 400, false,"You can only request a return after the product has been delivered."); 
     if(order.paymentStatus !== "Success") return sendResponse(res, 400, false,"We haven't received your payment yet. Please complete the payment to request a return."); 
 

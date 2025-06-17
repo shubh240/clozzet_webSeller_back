@@ -867,6 +867,7 @@ export const universalProductList = async (req, res) => {
                   $and: [
                     { $eq: ["$sellerAuthId", "$$sellerId"] },
                     { $eq: ["$is_deleted", false] },
+                    { $eq: ["$isActive", true] },
                   ],
                 },
               },
@@ -1024,6 +1025,7 @@ export const homePageProductList = async (req, res) => {
                   $and: [
                     { $eq: ["$sellerAuthId", "$$sellerId"] },
                     { $eq: ["$is_deleted", false] },
+                    { $eq: ["$isActive", true] },
                   ],
                 },
               },
