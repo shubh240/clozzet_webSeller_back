@@ -305,7 +305,7 @@ export const calculateAndUpdateCartTotals = async (cartId) => {
   const total_amount = roundToTwo(sub_total_amount + platform_fee + delivery_fee + cgst + sgst);
 
   await Cart.findByIdAndUpdate(cartId, {
-    sub_total_amount,
+    sub_total_amount : roundToTwo(sub_total_amount),
     platform_fee,
     delivery_fee,
     cgst,
