@@ -1,5 +1,5 @@
 import { Cart } from "../models/cart.model.js";
-import { sendResponse } from "../common/index.js";
+import { sendResponse , roundToTwo } from "../common/index.js";
 import { CartProduct } from "../models/cartProduct.model.js";
 import { Product } from "../models/product.model.js";
 import { ProductSize } from "../models/productSize.model.js";
@@ -298,15 +298,14 @@ export const calculateAndUpdateCartTotals = async (cartId) => {
     (sum, item) => sum + item.itemTotal,
     0
   );
-  const platform_fee = 10;
-  const delivery_fee = 20;
-  const cgst = sub_total_amount * 0.09;
-  const sgst = sub_total_amount * 0.09;
-  const total_amount =
-    sub_total_amount + platform_fee + delivery_fee + cgst + sgst;
+  const platform_fee = roundToTwo(10);
+  const delivery_fee = roundToTwo(20);
+  const cgst = roundToTwo(sub_total_amount * 0.09);
+  const sgst = roundToTwo(sub_total_amount * 0.09);
+  const total_amount = roundToTwo(sub_total_amount + platform_fee + delivery_fee + cgst + sgst);
 
   await Cart.findByIdAndUpdate(cartId, {
-    sub_total_amount,
+    sub_total_amount : roundToTwo(sub_total_amount),
     platform_fee,
     delivery_fee,
     cgst,
@@ -353,7 +352,7 @@ export const applyCouponToCart = async (req, res) => {
     if(!couponCode || couponCode.trim() === ""){
       cart.couponCode = null;
       cart.discountAmount = 0;
-      cart.total_amount = originalTotal;
+      cart.total_amount = roundToTwo(originalTotal);
 
       await cart.save();
 
@@ -416,15 +415,15 @@ export const applyCouponToCart = async (req, res) => {
     const totalAmountAfterDiscount = originalTotal - discount;
 
     cart.couponCode = coupon.couponCode;
-    cart.discountAmount = discount;
-    cart.total_amount = totalAmountAfterDiscount;
+    cart.discountAmount = roundToTwo(discount);
+    cart.total_amount = roundToTwo(totalAmountAfterDiscount);
 
     await cart.save();
 
     return sendResponse(res, 200, true, "Coupon applied", {
-      originalTotal: cart.total_amount + discount,
-      discount,
-      finalTotal: totalAmountAfterDiscount,
+      originalTotal: roundToTwo(cart.total_amount + discount),
+      discount: roundToTwo(discount),
+      finalTotal: roundToTwo(totalAmountAfterDiscount),
     });
   } catch (error) {
     return sendResponse(res, 500, false, error.message);
