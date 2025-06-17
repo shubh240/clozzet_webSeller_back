@@ -232,53 +232,129 @@ export const createOrder = async (req, res) => {
  * 
  * 
  */
-export const updateOrderStatusBySeller = async (req, res) => {
-  try {
-    const { orderId } = req.params;
-    const { status } = req.body;
-
-    if(!orderId) return sendResponse(res, 400, false, "OrderId is required");
-    if(!status) return sendResponse(res, 400, false, "Status is required");
-
-    if (!["Accepted", "Rejected"].includes(status)) {
-      return sendResponse(res, 400, false, "Status must be either 'Accepted' or 'Rejected'");
-    }
-
-    const order = await Order.findByIdAndUpdate(
-      orderId,
-      { orderStatus: status },
-      { new: true }
-    );
-
-    // Send status update notifications
-    if (order) {
-      // Send to customer
-      const customer = await Customer.findById(order.customerId);
-      if (customer && customer.fcmToken) {
-        await sendCustomerNotification(customer.fcmToken, {
-          title: `Order Status Updated`,
-          body: `Your order #${order.orderNumber} status is now ${status}`,
-          data: { orderId: order._id, status: status }
-        }, customer._id);
-      }
-
-      // Send to seller
-      const seller = await SellerUserAuth.findById(order.sellerId);
-      if (seller && seller.fcmToken) {
-        await sendSellerNotification(seller.fcmToken, {
-          title: `Order Status Updated`,
-          body: `Order #${order.orderNumber} status is now ${status}`,
-          data: { orderId: order._id, status: status }
-        }, seller._id);
-      }
-    }
-
-    return sendResponse(res, 200, true, `Order ${status.toLowerCase()} successfully`, order);
-  } catch (error) {
-    console.error("Order status update error:", error.message);
-    return sendResponse(res, 500, false, "Something went wrong");
-  }
-};
+ export const updateOrderStatusBySeller = async (req, res) => {
+   try {
+     const { orderId } = req.params;
+     const { status } = req.body;
+ 
+     if (!orderId) return sendResponse(res, 400, false, "OrderId is required");
+     if (!status) return sendResponse(res, 400, false, "Status is required");
+ 
+     if (!["Accepted", "Rejected"].includes(status)) {
+       return sendResponse(res, 400, false, "Status must be either 'Accepted' or 'Rejected'");
+     }
+ 
+     const order = await Order.findByIdAndUpdate(
+       orderId,
+       { orderStatus: status },
+       { new: true }
+     );
+ 
+     if (!order) return sendResponse(res, 404, false, "Order not found");
+ 
+     // Notify customer
+     const customer = await Customer.findById(order.customerId);
+     if (customer && customer.fcmToken) {
+       await sendCustomerNotification(customer.fcmToken, {
+         title: `Order Status Updated`,
+         body: `Your order #${order.orderNumber} status is now ${status}`,
+         data: { orderId: order._id, status }
+       }, customer._id);
+     }
+ 
+     // Notify seller
+     const seller = await SellerUserAuth.findById(order.sellerId);
+     if (seller && seller.fcmToken) {
+       await sendSellerNotification(seller.fcmToken, {
+         title: `Order Status Updated`,
+         body: `Order #${order.orderNumber} status is now ${status}`,
+         data: { orderId: order._id, status }
+       }, seller._id);
+     }
+ 
+     // Create shipment if order is accepted
+     if (status === "Accepted") {
+       const store = await StoreInfo.findById(order.storeId).populate({
+         path: 'sellerAuthId',
+         select: 'userInfo',
+       });
+ 
+       const customerAddress = await CustomerAddress.findById(order.customerAddressId).populate({
+         path: 'customerId',
+         select: 'fullName countryCode mobileNo altMobileNo',
+       });
+ 
+       if (!store || !customerAddress) {
+         return sendResponse(res, 400, false, "Missing address info for shipment");
+       }
+ 
+       const shipmentProviderName = order.paymentTypeId === 1 ? "Shiprocket" : "Porter";
+       const shipmentProvider = await ShipmentProvider.findOne({ name: shipmentProviderName });
+ 
+       if (!shipmentProvider) {
+         return sendResponse(res, 400, false, "Invalid shipment provider");
+       }
+ 
+       let shipmentResponse;
+       if (shipmentProvider.name === "Shiprocket") {
+         shipmentResponse = await createShiprocketShipment(order, store, customerAddress);
+       } else {
+         shipmentResponse = await createPorterShipment(order, store, customerAddress);
+       }
+ 
+       const shipment = await Shipment.create({
+         orderId: order._id,
+         shipmentProviderId: shipmentProvider._id,
+         trackingId: shipmentResponse?.tracking_id || shipmentProvider._id,
+         currentStatus: "Created",
+         pickupStoreName: store.storeName,
+         pickupAddress: store.storeAddress,
+         pickupAddressUrl: store.address_url,
+         pickupPincode: store.pincode,
+         pickupCity: store.city,
+         pickupState: store.state,
+         pickupLat: store.lat,
+         pickupLng: store.lng,
+         dropAddressType: customerAddress.type,
+         dropAddressLine1: customerAddress.address_line_1,
+         dropAddressLine2: customerAddress.address_line_2,
+         dropAddressUrl: customerAddress.address_url,
+         dropLandmark: customerAddress.landmark,
+         dropPincode: customerAddress.pincode,
+         dropCity: customerAddress.city,
+         dropState: customerAddress.state,
+         dropLat: customerAddress.location.coordinates[1],
+         dropLng: customerAddress.location.coordinates[0],
+         shipmentResponse: JSON.stringify(shipmentResponse?.raw),
+         trackingUrl:
+           shipmentResponse?.tracking_url ||
+           null,
+       });
+ 
+       // Notify about shipment creation
+       if (customer && customer.fcmToken) {
+         await sendCustomerNotification(customer.fcmToken, {
+           title: "Shipment Created",
+           body: `Your order #${order.orderNumber} is ready for shipment`,
+           data: { orderId: order._id, shipmentId: shipment._id }
+         }, customer._id);
+       }
+ 
+       if (seller && seller.fcmToken) {
+         await sendSellerNotification(seller.fcmToken, {
+           title: "Shipment Created",
+           body: `Order #${order.orderNumber} is ready for shipment`,
+           data: { orderId: order._id, shipmentId: shipment._id }
+         }, seller._id);
+       }
+     }
+ 
+     return sendResponse(res, 200, true, `Order ${status.toLowerCase()} successfully`, order);
+   } catch (error) {
+     console.error("Order status update error:", error.message);
+     return sendResponse(res, 500, false, "Something went wrong");
+   }
+ };
 
 /**
  *
