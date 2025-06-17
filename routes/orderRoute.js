@@ -65,6 +65,7 @@ router.post("/retunActionPerform/:id", isUserAuthenticated, retunActionPerform);
 router.post("/shiprocket-webhook-handler", shiprocketWebhookHandler);
 router.post("/porter-webhook-handler", porterWebhookHandler);
 router.post("/porter-webhook", porterWebhook);
+router.post("/porter-webhook-test", porterWebhook);
 
 router.post("/exchange-pickup-status", handleExchangeWebhook);
 
