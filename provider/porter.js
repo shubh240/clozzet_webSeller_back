@@ -51,8 +51,8 @@ export const createPorterShipment = async (order, store, customerAddress) => {
           state: customerAddress?.state,
           pincode: customerAddress?.pincode,
           country: "India",
-          lat: customerAddress?.location?.coordinates[1], // lat
-          lng: customerAddress?.location?.coordinates[0], // lng
+          lat: customerAddress?.location?.coordinates[0], // lat
+          lng: customerAddress?.location?.coordinates[1], // lng
           contact_details: {
             name: customerAddress?.customerId?.fullName,
             phone_number: `${customerAddress?.customerId?.countryCode}${customerAddress?.customerId?.mobileNo || customerAddress?.customerId?.altMobileNo}` ,
@@ -88,7 +88,7 @@ export const createPorterShipment = async (order, store, customerAddress) => {
     //   error.response?.data || error.message
     // );
     // throw new Error(error.response?.data);
-    
+    // console.log(error?.response)
     const porterErrorMessage =
       error?.response?.data?.message || // Porter usually sends message here
       error?.response?.data?.error ||   // fallback if structured differently
