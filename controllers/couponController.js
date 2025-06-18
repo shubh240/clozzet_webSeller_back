@@ -211,7 +211,16 @@ export const getCustomerCoupons = async (req, res) => {
     if (!storeId) {
       return sendResponse(res, 400, false, "storeId is required");
     }
+    
+    const store = await StoreInfo.findOne({
+      _id: new mongoose.Types.ObjectId(storeId),
+      is_deleted: false,
+      isActive: true,
+    });
 
+    if (!store) {
+      return sendResponse(res, 400, false, "Store is either inactive or does not exist");
+    }
     const coupons = await Coupon.find({
       storeId: new mongoose.Types.ObjectId(storeId),
       is_deleted: false,
