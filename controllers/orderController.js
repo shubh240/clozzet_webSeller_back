@@ -34,7 +34,7 @@ import cloudinary from "../config/cloudinary.js";
 import fs from "fs";
 import { sendCustomerNotification, sendSellerNotification } from "../utils/firebase-admin.js";
 import { SellerUserAuth } from "../models/sellerUserInfo.model.js";
-
+import crypto from "crypto";
 /**
  *
  * Create an order
@@ -422,11 +422,14 @@ export const verifyPayment = async (req, res) => {
     }
 
     const body = `${razorpay_order_id}|${razorpay_payment_id}`;
+    console.log('body  ---->' , body)
+    console.log('process.env.RAZORPAY_KEY_SECRET  ---->' , process.env.RAZORPAY_KEY_SECRET)
     const expectedSignature = crypto
       .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
       .update(body.toString())
       .digest("hex");
 
+    console.log('expectedSignature',expectedSignature)
     if (expectedSignature !== razorpay_signature)
       return sendResponse(res, 400, false, "Payment verification failed");
 
