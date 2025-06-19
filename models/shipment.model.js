@@ -86,6 +86,25 @@ const shipmentSchema = new mongoose.Schema(
     dropLng: {
       type: Number,
     },
+    partner_name: {
+      type: String, 
+    },
+    partner_vehicle_number: {
+      type: String, 
+    },
+    partner_mobile: {
+      type: String, 
+    },
+    partner_lat: {
+      type: String, 
+    },
+    partner_lng: {
+      type: String, 
+    },
+    deliveryFee: {
+      type: Number,
+      default: 0,
+    },
     shipmentResponse: {
       type: String, 
     },

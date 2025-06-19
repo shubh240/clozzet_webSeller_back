@@ -75,7 +75,7 @@ router.post("/exchange-pickup-status", handleExchangeWebhook);
 router.get("/list-customerReturnOrder", isUserAuthenticated, getCustomerReturnRequests);
 router.get("/list-customerExchangeOrder", isUserAuthenticated, getCustomerExchanges);
 
-router.post("/create-shipment", isUserAuthenticated, createShipment);
+// router.post("/create-shipment", isUserAuthenticated, createShipment);
 
 router.post('/api/razorpay/webhook', express.raw({ type: 'application/json' }), razorpayWebhook);
 

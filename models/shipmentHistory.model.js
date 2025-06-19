@@ -16,6 +16,12 @@ const shipmentHistorySchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    partner_lat: {
+      type: String, 
+    },
+    partner_lng: {
+      type: String, 
+    },
     description: {
       type: String,
       trim: true,

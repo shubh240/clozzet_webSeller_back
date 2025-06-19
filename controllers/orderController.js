@@ -8,11 +8,17 @@ import { CustomerAddress } from "../models/customerAddres.model.js";
 import { Shipment } from "../models/shipment.model.js";
 import { ShipmentHistory } from "../models/shipmentHistory.model.js";
 import { v4 as uuidv4 } from "uuid";
-import { sendResponse ,roundToTwo } from "../common/index.js";
+import { sendResponse, roundToTwo } from "../common/index.js";
 import { calculateAndUpdateCartTotals } from "./cartController.js";
 import { ShipmentProvider } from "../models/shipmentProvider.model.js";
-import { createShiprocketShipment ,createShiprocketReversePickup } from "../provider/shiprocket.js";
-import { createPorterShipment ,createPorterReversePickup } from "../provider/porter.js";
+import {
+  createShiprocketShipment,
+  createShiprocketReversePickup,
+} from "../provider/shiprocket.js";
+import {
+  createPorterShipment,
+  createPorterReversePickup,
+} from "../provider/porter.js";
 import { rezerpayRefundPayment } from "../provider/razorPay.js";
 import { StoreInfo } from "../models/sellerStoreInfo.model.js";
 import { Category } from "../models/category.model.js";
@@ -26,13 +32,16 @@ import { PaymentType } from "../models/paymentType.model.js";
 import { razorpay } from "../config/razorPay.js";
 import { Exchange } from "../models/exchange.model.js";
 import { ExchangeProduct } from "../models/exchangeProduct.model.js";
-import mongoose from 'mongoose';
-import axios from 'axios';
+import mongoose from "mongoose";
+import axios from "axios";
 import { Coupon } from "../models/coupon.model.js";
 import { CouponUsage } from "../models/couponUsage.model.js";
 import cloudinary from "../config/cloudinary.js";
 import fs from "fs";
-import { sendCustomerNotification, sendSellerNotification } from "../utils/firebase-admin.js";
+import {
+  sendCustomerNotification,
+  sendSellerNotification,
+} from "../utils/firebase-admin.js";
 import { SellerUserAuth } from "../models/sellerUserInfo.model.js";
 import crypto from "crypto";
 /**
@@ -63,7 +72,12 @@ export const createOrder = async (req, res) => {
      */
     const store = await StoreInfo.findById(cart.storeId);
     if (!store || !store.isActive) {
-      return sendResponse(res, 400, false, "Store is inactive, cannot place order");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Store is inactive, cannot place order"
+      );
     }
 
     /**
@@ -107,7 +121,7 @@ export const createOrder = async (req, res) => {
         quantity: cp.quantity,
         amountPerUnit: roundToTwo(amountPerUnit),
         totalAmount: roundToTwo(total),
-        color: product.colors._id
+        color: product.colors._id,
       });
 
       await ProductSize.findByIdAndUpdate(productSize._id, {
@@ -130,11 +144,11 @@ export const createOrder = async (req, res) => {
       subTotalAmount: roundToTwo(cart?.sub_total_amount),
       platformFee: roundToTwo(cart?.platform_fee) || 0,
       deliveryFee: roundToTwo(cart?.delivery_fee) || 0,
-      couponCode : cart?.couponCode,
-      discountAmount : roundToTwo(cart?.discountAmount),
-      cgst : roundToTwo(cart?.cgst) || 0,
-      sgst : roundToTwo(cart?.sgst) || 0,
-      sgst : roundToTwo(cart?.sgst) || 0,
+      couponCode: cart?.couponCode,
+      discountAmount: roundToTwo(cart?.discountAmount),
+      cgst: roundToTwo(cart?.cgst) || 0,
+      sgst: roundToTwo(cart?.sgst) || 0,
+      sgst: roundToTwo(cart?.sgst) || 0,
       totalAmount: roundToTwo(cart?.total_amount) || 0,
       paymentStatus: paymentTypeId === 1 ? "Success" : "Pending",
     });
@@ -148,21 +162,29 @@ export const createOrder = async (req, res) => {
     // Send notifications for new order
     const customer = await Customer.findById(cart.customerId);
     if (customer && customer.fcmToken) {
-      await sendCustomerNotification(customer.fcmToken, {
-        title: "New Order Placed",
-        body: `Your order #${newOrder.orderNumber} has been placed successfully!`,
-        data: { orderId: newOrder._id }
-      }, customer._id);
+      await sendCustomerNotification(
+        customer.fcmToken,
+        {
+          title: "New Order Placed",
+          body: `Your order #${newOrder.orderNumber} has been placed successfully!`,
+          data: { orderId: newOrder._id },
+        },
+        customer._id
+      );
     }
 
     // Send notification to seller
     const seller = await SellerUserAuth.findById(cart.sellerId);
     if (seller && seller.fcmToken) {
-      await sendSellerNotification(seller.fcmToken, {
-        title: "New Order Received",
-        body: `You received a new order #${newOrder.orderNumber}!`,
-        data: { orderId: newOrder._id }
-      }, seller._id);
+      await sendSellerNotification(
+        seller.fcmToken,
+        {
+          title: "New Order Received",
+          body: `You received a new order #${newOrder.orderNumber}!`,
+          data: { orderId: newOrder._id },
+        },
+        seller._id
+      );
     }
 
     /**
@@ -175,18 +197,24 @@ export const createOrder = async (req, res) => {
         is_deleted: false,
         isActive: true,
       });
-      
+
       if (coupon) {
-        if (coupon.usageLimit > 0 && coupon.currentUsagesCount >= coupon.usageLimit) {
+        if (
+          coupon.usageLimit > 0 &&
+          coupon.currentUsagesCount >= coupon.usageLimit
+        ) {
           return sendResponse(res, 400, false, "Coupon usage limit exceeded");
         }
 
-      const userUsage = await CouponUsage.findOne({
-        couponId: coupon._id,
-        customerId: cart.customerId,
-      });
+        const userUsage = await CouponUsage.findOne({
+          couponId: coupon._id,
+          customerId: cart.customerId,
+        });
 
-      if (coupon.usageLimitPerUser > 0 && userUsage?.usageCount >= coupon.usageLimitPerUser) {
+        if (
+          coupon.usageLimitPerUser > 0 &&
+          userUsage?.usageCount >= coupon.usageLimitPerUser
+        ) {
           return sendResponse(
             res,
             400,
@@ -194,8 +222,8 @@ export const createOrder = async (req, res) => {
             "You have reached maximum usage for this coupon"
           );
         }
-      coupon.currentUsagesCount += 1;
-      await coupon.save();
+        coupon.currentUsagesCount += 1;
+        await coupon.save();
 
         await CouponUsage.findOneAndUpdate(
           { couponId: coupon._id, customerId: cart.customerId },
@@ -208,7 +236,7 @@ export const createOrder = async (req, res) => {
     /**
      * Clear Cart (only delete when payment is COD)
      */
-    if(paymentTypeId === 1){
+    if (paymentTypeId === 1) {
       await CartProduct.deleteMany({ cartId: cart._id });
       await Cart.findByIdAndDelete({ _id: cart._id });
     }
@@ -227,134 +255,185 @@ export const createOrder = async (req, res) => {
 };
 
 /**
- * 
+ *
  * Accept or Reject Order by seller
- * 
- * 
+ *
+ *
  */
- export const updateOrderStatusBySeller = async (req, res) => {
-   try {
-     const { orderId } = req.params;
-     const { status } = req.body;
- 
-     if (!orderId) return sendResponse(res, 400, false, "OrderId is required");
-     if (!status) return sendResponse(res, 400, false, "Status is required");
- 
-     if (!["Accepted", "Rejected"].includes(status)) {
-       return sendResponse(res, 400, false, "Status must be either 'Accepted' or 'Rejected'");
-     }
- 
-     const order = await Order.findByIdAndUpdate(
-       orderId,
-       { orderStatus: status },
-       { new: true }
-     );
- 
-     if (!order) return sendResponse(res, 404, false, "Order not found");
- 
-     // Notify customer
-     const customer = await Customer.findById(order.customerId);
-     if (customer && customer.fcmToken) {
-       await sendCustomerNotification(customer.fcmToken, {
-         title: `Order Status Updated`,
-         body: `Your order #${order.orderNumber} status is now ${status}`,
-         data: { orderId: order._id, status }
-       }, customer._id);
-     }
- 
-     // Notify seller
-     const seller = await SellerUserAuth.findById(order.sellerId);
-     if (seller && seller.fcmToken) {
-       await sendSellerNotification(seller.fcmToken, {
-         title: `Order Status Updated`,
-         body: `Order #${order.orderNumber} status is now ${status}`,
-         data: { orderId: order._id, status }
-       }, seller._id);
-     }
- 
-     // Create shipment if order is accepted
-     if (status === "Accepted") {
-       const store = await StoreInfo.findById(order.storeId).populate({
-         path: 'sellerAuthId',
-         select: 'userInfo',
-       });
- 
-       const customerAddress = await CustomerAddress.findById(order.customerAddressId).populate({
-         path: 'customerId',
-         select: 'fullName countryCode mobileNo altMobileNo',
-       });
- 
-       if (!store || !customerAddress) {
-         return sendResponse(res, 400, false, "Missing address info for shipment");
-       }
- 
-       const shipmentProviderName = order.paymentTypeId === 1 ? "Shiprocket" : "Porter";
-       const shipmentProvider = await ShipmentProvider.findOne({ name: shipmentProviderName });
- 
-       if (!shipmentProvider) {
-         return sendResponse(res, 400, false, "Invalid shipment provider");
-       }
- 
-       let shipmentResponse;
-       if (shipmentProvider.name === "Shiprocket") {
-         shipmentResponse = await createShiprocketShipment(order, store, customerAddress);
-       } else {
-         shipmentResponse = await createPorterShipment(order, store, customerAddress);
-       }
- 
-       const shipment = await Shipment.create({
-         orderId: order._id,
-         shipmentProviderId: shipmentProvider._id,
-         trackingId: shipmentResponse?.tracking_id || shipmentProvider._id,
-         currentStatus: "Created",
-         pickupStoreName: store.storeName,
-         pickupAddress: store.storeAddress,
-         pickupAddressUrl: store.address_url,
-         pickupPincode: store.pincode,
-         pickupCity: store.city,
-         pickupState: store.state,
-         pickupLat: store.lat,
-         pickupLng: store.lng,
-         dropAddressType: customerAddress.type,
-         dropAddressLine1: customerAddress.address_line_1,
-         dropAddressLine2: customerAddress.address_line_2,
-         dropAddressUrl: customerAddress.address_url,
-         dropLandmark: customerAddress.landmark,
-         dropPincode: customerAddress.pincode,
-         dropCity: customerAddress.city,
-         dropState: customerAddress.state,
-         dropLat: customerAddress.location.coordinates[1],
-         dropLng: customerAddress.location.coordinates[0],
-         shipmentResponse: JSON.stringify(shipmentResponse?.raw),
-         trackingUrl:
-           shipmentResponse?.tracking_url ||
-           null,
-       });
- 
-       // Notify about shipment creation
-       if (customer && customer.fcmToken) {
-         await sendCustomerNotification(customer.fcmToken, {
-           title: "Shipment Created",
-           body: `Your order #${order.orderNumber} is ready for shipment`,
-           data: { orderId: order._id, shipmentId: shipment._id }
-         }, customer._id);
-       }
- 
-       if (seller && seller.fcmToken) {
-         await sendSellerNotification(seller.fcmToken, {
-           title: "Shipment Created",
-           body: `Order #${order.orderNumber} is ready for shipment`,
-           data: { orderId: order._id, shipmentId: shipment._id }
-         }, seller._id);
-       }
-     }
- 
-     return sendResponse(res, 200, true, `Order ${status.toLowerCase()} successfully`, order);
-   } catch (error) {
-     console.error("Order status update error:", error.message);
-     return sendResponse(res, 500, false, "Something went wrong");
-   }
- };
+export const updateOrderStatusBySeller = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { status } = req.body;
+
+    if (!orderId) return sendResponse(res, 400, false, "OrderId is required");
+    if (!status) return sendResponse(res, 400, false, "Status is required");
+
+    if (!["Accepted", "Rejected"].includes(status)) {
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Status must be either 'Accepted' or 'Rejected'"
+      );
+    }
+
+    const order = await Order.findByIdAndUpdate(
+      orderId,
+      { orderStatus: status },
+      { new: true }
+    );
+
+    if (!order) return sendResponse(res, 404, false, "Order not found");
+
+    // Notify customer
+    const customer = await Customer.findById(order.customerId);
+    if (customer && customer.fcmToken) {
+      await sendCustomerNotification(
+        customer.fcmToken,
+        {
+          title: `Order Status Updated`,
+          body: `Your order #${order.orderNumber} status is now ${status}`,
+          data: { orderId: order._id, status },
+        },
+        customer._id
+      );
+    }
+
+    // Notify seller
+    const seller = await SellerUserAuth.findById(order.sellerId);
+    if (seller && seller.fcmToken) {
+      await sendSellerNotification(
+        seller.fcmToken,
+        {
+          title: `Order Status Updated`,
+          body: `Order #${order.orderNumber} status is now ${status}`,
+          data: { orderId: order._id, status },
+        },
+        seller._id
+      );
+    }
+
+    // Create shipment if order is accepted
+    if (status === "Accepted") {
+      const store = await StoreInfo.findById(order.storeId).populate({
+        path: "sellerAuthId",
+        select: "userInfo",
+      });
+
+      const customerAddress = await CustomerAddress.findById(
+        order.customerAddressId
+      ).populate({
+        path: "customerId",
+        select: "fullName countryCode mobileNo altMobileNo",
+      });
+
+      if (!store || !customerAddress) {
+        return sendResponse(
+          res,
+          400,
+          false,
+          "Missing address info for shipment"
+        );
+      }
+
+      const shipmentProviderName =
+        order.paymentTypeId === 1 ? "Shiprocket" : "Porter";
+      const shipmentProvider = await ShipmentProvider.findOne({
+        name: shipmentProviderName,
+      });
+
+      if (!shipmentProvider) {
+        return sendResponse(res, 400, false, "Invalid shipment provider");
+      }
+
+      let shipmentResponse;
+      // if (shipmentProvider.name === "Shiprocket") {
+      //   shipmentResponse = await createShiprocketShipment(
+      //     order,
+      //     store,
+      //     customerAddress
+      //   );
+      // } else {
+      //   shipmentResponse = await createPorterShipment(
+      //     order,
+      //     store,
+      //     customerAddress
+      //   );
+      // }
+
+      shipmentResponse = await createPorterShipment(
+        order,
+        store,
+        customerAddress
+      );
+
+      const shipment = await Shipment.create({
+        orderId: order._id,
+        shipmentProviderId: shipmentProvider._id,
+        trackingId: shipmentResponse?.tracking_id || shipmentProvider._id,
+        currentStatus: "Created",
+        pickupStoreName: store.storeName,
+        pickupAddress: store.storeAddress,
+        pickupAddressUrl: store.address_url,
+        pickupPincode: store.pincode,
+        pickupCity: store.city,
+        pickupState: store.state,
+        pickupLat: store.lat,
+        pickupLng: store.lng,
+        dropAddressType: customerAddress.type,
+        dropAddressLine1: customerAddress.address_line_1,
+        dropAddressLine2: customerAddress.address_line_2,
+        dropAddressUrl: customerAddress.address_url,
+        dropLandmark: customerAddress.landmark,
+        dropPincode: customerAddress.pincode,
+        dropCity: customerAddress.city,
+        dropState: customerAddress.state,
+        dropLat: customerAddress.location.coordinates[0],
+        dropLng: customerAddress.location.coordinates[1],
+        shipmentResponse: JSON.stringify(shipmentResponse?.raw),
+        trackingUrl: shipmentResponse?.tracking_url || null,
+      });
+
+      await Order.findByIdAndUpdate(order._id, { orderStatus: "Processing" });
+
+      // Notify about shipment creation
+      if (customer && customer.fcmToken) {
+        await sendCustomerNotification(
+          customer.fcmToken,
+          {
+            title: "Shipment Created",
+            body: `Your order #${order.orderNumber} is ready for shipment`,
+            data: { orderId: order._id, shipmentId: shipment._id },
+          },
+          customer._id
+        );
+      }
+
+      if (seller && seller.fcmToken) {
+        await sendSellerNotification(
+          seller.fcmToken,
+          {
+            title: "Shipment Created",
+            body: `Order #${order.orderNumber} is ready for shipment`,
+            data: { orderId: order._id, shipmentId: shipment._id },
+          },
+          seller._id
+        );
+      }
+    }
+
+    return sendResponse(
+      res,
+      200,
+      true,
+      `Order ${status.toLowerCase()} successfully`,
+      order
+    );
+  } catch (error) {
+    console.error("Order status update error:", error.message);
+    return sendResponse(res, 500, false, "Something went wrong");
+  }
+};
 
 /**
  *
@@ -365,11 +444,12 @@ export const createRazorpayOrder = async (req, res) => {
   try {
     const { orderId } = req.body;
     if (!orderId) return sendResponse(res, 400, false, "orderId is required");
-    
+
     const order = await Order.findById(orderId);
     if (!order) return sendResponse(res, 404, false, "Order not found");
-    if (order.paymentTypeId !== 2) return sendResponse(res, 400, false, "Not an online payment order");
-    
+    if (order.paymentTypeId !== 2)
+      return sendResponse(res, 400, false, "Not an online payment order");
+
     const options = {
       amount: Math.round(order?.totalAmount * 100), // Razorpay needs amount in paisa
       currency: order?.currency || "INR",
@@ -378,7 +458,7 @@ export const createRazorpayOrder = async (req, res) => {
     };
 
     const rzpOrder = await razorpay.orders.create(options);
-    
+
     const data = {
       razorpayOrderId: rzpOrder.id,
       amount: roundToTwo(options.amount),
@@ -422,14 +502,17 @@ export const verifyPayment = async (req, res) => {
     }
 
     const body = `${razorpay_order_id}|${razorpay_payment_id}`;
-    console.log('body  ---->' , body)
-    console.log('process.env.RAZORPAY_KEY_SECRET  ---->' , process.env.RAZORPAY_KEY_SECRET)
+    console.log("body  ---->", body);
+    console.log(
+      "process.env.RAZORPAY_KEY_SECRET  ---->",
+      process.env.RAZORPAY_KEY_SECRET
+    );
     const expectedSignature = crypto
       .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
       .update(body.toString())
       .digest("hex");
 
-    console.log('expectedSignature',expectedSignature)
+    console.log("expectedSignature", expectedSignature);
     if (expectedSignature !== razorpay_signature)
       return sendResponse(res, 400, false, "Payment verification failed");
 
@@ -453,21 +536,29 @@ export const verifyPayment = async (req, res) => {
       // Notify customer
       const customer = await Customer.findById(order.customerId);
       if (customer && customer.fcmToken) {
-        await sendCustomerNotification(customer.fcmToken, {
-          title: "Payment Successful",
-          body: `Your payment for order #${order.orderNumber} has been successful`,
-          data: { orderId: order._id }
-        }, customer._id);
+        await sendCustomerNotification(
+          customer.fcmToken,
+          {
+            title: "Payment Successful",
+            body: `Your payment for order #${order.orderNumber} has been successful`,
+            data: { orderId: order._id },
+          },
+          customer._id
+        );
       }
 
       // Notify seller
       const seller = await SellerUserAuth.findById(order.sellerId);
       if (seller && seller.fcmToken) {
-        await sendSellerNotification(seller.fcmToken, {
-          title: "Payment Received",
-          body: `You received payment for order #${order.orderNumber}`,
-          data: { orderId: order._id }
-        }, seller._id);
+        await sendSellerNotification(
+          seller.fcmToken,
+          {
+            title: "Payment Received",
+            body: `You received payment for order #${order.orderNumber}`,
+            data: { orderId: order._id },
+          },
+          seller._id
+        );
       }
     }
     /**
@@ -477,7 +568,7 @@ export const verifyPayment = async (req, res) => {
       await CartProduct.deleteMany({ cartId: order.cartId });
       await Cart.findByIdAndDelete(order.cartId);
     }
-    
+
     return sendResponse(res, 200, true, "Payment verified successfully");
   } catch (error) {
     console.error("Razorpay verification error:", error.message);
@@ -490,47 +581,92 @@ export const verifyPayment = async (req, res) => {
  * Return Order
  *
  */
-export const returnOrder = async(req,res)=>{
+export const returnOrder = async (req, res) => {
   try {
     const customerId = req.id;
-     const {
-      orderId,
-      reason,
-      description,
-      orderItemIds
-    } = req.body;
-    
+    const { orderId, reason, description, orderItemIds } = req.body;
+
     let parsedOrderItemIds;
     try {
-      parsedOrderItemIds = typeof orderItemIds === "string" ? JSON.parse(orderItemIds) : orderItemIds;
+      parsedOrderItemIds =
+        typeof orderItemIds === "string"
+          ? JSON.parse(orderItemIds)
+          : orderItemIds;
     } catch (err) {
-      return sendResponse(res, 400, false, "orderItemIds must be a valid JSON array.");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "orderItemIds must be a valid JSON array."
+      );
     }
 
     if (!Array.isArray(parsedOrderItemIds) || parsedOrderItemIds.length === 0) {
-      return sendResponse(res, 400, false, "orderItemIds must be a non-empty array.");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "orderItemIds must be a non-empty array."
+      );
     }
 
-    if (!orderId || !reason || !Array.isArray(parsedOrderItemIds) || parsedOrderItemIds.length === 0) {
+    if (
+      !orderId ||
+      !reason ||
+      !Array.isArray(parsedOrderItemIds) ||
+      parsedOrderItemIds.length === 0
+    ) {
       return sendResponse(res, 400, false, "Missing required fields.");
     }
 
-    const order = await Order.findById(orderId).populate("storeId").populate("sellerId");
-    if(!order) return sendResponse(res, 400, false,"Order not found.");
-    if (!order.storeId || order.storeId.is_deleted || order.storeId.isActive === false) {
-      return sendResponse(res, 403, false, "Return request not allowed. Store is inactive or deleted.");
+    const order = await Order.findById(orderId)
+      .populate("storeId")
+      .populate("sellerId");
+    if (!order) return sendResponse(res, 400, false, "Order not found.");
+    if (
+      !order.storeId ||
+      order.storeId.is_deleted ||
+      order.storeId.isActive === false
+    ) {
+      return sendResponse(
+        res,
+        403,
+        false,
+        "Return request not allowed. Store is inactive or deleted."
+      );
     }
-    if(order.orderStatus !== "Delivered") return sendResponse(res, 400, false,"You can only request a return after the product has been delivered."); 
-    if(order.paymentStatus !== "Success") return sendResponse(res, 400, false,"We haven't received your payment yet. Please complete the payment to request a return."); 
+    if (order.orderStatus !== "Delivered")
+      return sendResponse(
+        res,
+        400,
+        false,
+        "You can only request a return after the product has been delivered."
+      );
+    if (order.paymentStatus !== "Success")
+      return sendResponse(
+        res,
+        400,
+        false,
+        "We haven't received your payment yet. Please complete the payment to request a return."
+      );
 
     const existingReturns = await ReturnProduct.find({
-      orderItemId: { $in: parsedOrderItemIds }
+      orderItemId: { $in: parsedOrderItemIds },
     }).populate("returnId");
 
-    const alreadyRequested = existingReturns.filter((rp) => rp.returnId && rp.returnId.customerId.toString() === customerId.toString());
+    const alreadyRequested = existingReturns.filter(
+      (rp) =>
+        rp.returnId &&
+        rp.returnId.customerId.toString() === customerId.toString()
+    );
 
     if (alreadyRequested.length > 0) {
-      return sendResponse(res, 409, false, "Return request already exists for one or more selected items.");
+      return sendResponse(
+        res,
+        409,
+        false,
+        "Return request already exists for one or more selected items."
+      );
     }
 
     let primaryImageUrl = "";
@@ -538,50 +674,58 @@ export const returnOrder = async(req,res)=>{
       return sendResponse(res, 400, false, "image is required");
     }
 
-        // Upload primary image
-      const imagePath = req.files["image"][0].path;
-      const imageResult = await cloudinary.uploader.upload(imagePath, {
-        folder: "uploads/returnOrder/images",
-        resource_type: "image",
-      });
-      primaryImageUrl = imageResult.secure_url;
-      fs.unlinkSync(imagePath);
+    // Upload primary image
+    const imagePath = req.files["image"][0].path;
+    const imageResult = await cloudinary.uploader.upload(imagePath, {
+      folder: "uploads/returnOrder/images",
+      resource_type: "image",
+    });
+    primaryImageUrl = imageResult.secure_url;
+    fs.unlinkSync(imagePath);
 
     const returnRequest = await Return.create({
       orderId,
       customerId,
-      storeId : order.storeId,
-      sellerId : order.sellerId,
+      storeId: order.storeId,
+      sellerId: order.sellerId,
       reason,
       description,
-      image :primaryImageUrl,
+      image: primaryImageUrl,
       status: "Requested",
-      refundStatus: "Pending"
+      refundStatus: "Pending",
     });
 
     // Send return request notification to seller
     const seller = await SellerUserAuth.findById(order.sellerId);
     if (seller && seller.fcmToken) {
-      await sendSellerNotification(seller.fcmToken, {
-        title: "Return Request Received",
-        body: `New return request for order #${orderId}`,
-        data: { orderId: orderId, returnId: returnRequest._id }
-      }, seller._id);
+      await sendSellerNotification(
+        seller.fcmToken,
+        {
+          title: "Return Request Received",
+          body: `New return request for order #${orderId}`,
+          data: { orderId: orderId, returnId: returnRequest._id },
+        },
+        seller._id
+      );
     }
 
     // Send confirmation to customer
     const customer = await Customer.findById(req.id);
     if (customer && customer.fcmToken) {
-      await sendCustomerNotification(customer.fcmToken, {
-        title: "Return Request Submitted",
-        body: `Your return request for order #${orderId} has been submitted`,
-        data: { orderId: orderId, returnId: returnRequest._id }
-      }, customer._id);
+      await sendCustomerNotification(
+        customer.fcmToken,
+        {
+          title: "Return Request Submitted",
+          body: `Your return request for order #${orderId} has been submitted`,
+          data: { orderId: orderId, returnId: returnRequest._id },
+        },
+        customer._id
+      );
     }
 
-    const returnProducts = parsedOrderItemIds.map(itemId => ({
+    const returnProducts = parsedOrderItemIds.map((itemId) => ({
       returnId: returnRequest._id,
-      orderItemId: itemId
+      orderItemId: itemId,
     }));
 
     await ReturnProduct.insertMany(returnProducts);
@@ -592,7 +736,7 @@ export const returnOrder = async(req,res)=>{
     const customerAddress = await CustomerAddress.findOne({
       customerId,
       is_deleted: false,
-      }).sort({ createdAt: -1 });
+    }).sort({ createdAt: -1 });
 
     if (!customerAddress) {
       return sendResponse(res, 404, false, "Customer address not found.");
@@ -609,14 +753,26 @@ export const returnOrder = async(req,res)=>{
     //   pickupInfo = await createShiprocketReversePickup(order, returnRequest, customerAddress,parsedOrderItemIds);
     //   shipmentProviderName = "Shiprocket";
     // } else {
-      // Online → Use Porter
-      pickupInfo = await createPorterReversePickup(order, returnRequest, customerAddress);
-      shipmentProviderName = "Porter";
+    // Online → Use Porter
+    pickupInfo = await createPorterReversePickup(
+      order,
+      returnRequest,
+      customerAddress
+    );
+    shipmentProviderName = "Porter";
     // }
-    const shipmentProvider = await ShipmentProvider.findOne({ name: shipmentProviderName });
+    const shipmentProvider = await ShipmentProvider.findOne({
+      name: shipmentProviderName,
+    });
 
     if (!pickupInfo.success) {
-      return sendResponse(res, 500, false, "Reverse shipment creation failed.", pickupInfo.error);
+      return sendResponse(
+        res,
+        500,
+        false,
+        "Reverse shipment creation failed.",
+        pickupInfo.error
+      );
     }
 
     returnRequest.status = "Pickup Initiated";
@@ -626,16 +782,21 @@ export const returnOrder = async(req,res)=>{
     returnRequest.pickupDate = pickupInfo.pickupDate;
     await returnRequest.save();
 
-    return sendResponse(res, 201, true, "Return request created successfully.", {
-      returnRequest,
-      returnProducts
-    });
-
+    return sendResponse(
+      res,
+      201,
+      true,
+      "Return request created successfully.",
+      {
+        returnRequest,
+        returnProducts,
+      }
+    );
   } catch (err) {
     console.error("Create Return Error:", err);
     return sendResponse(res, 500, false, "Returned failed");
   }
-}
+};
 
 /**
  * @param {*} req  PorterWebhook
@@ -666,21 +827,29 @@ export const porterWebhookHandler = async (req, res) => {
         // Notify customer
         const customer = await Customer.findById(order.customerId);
         if (customer && customer.fcmToken) {
-          await sendCustomerNotification(customer.fcmToken, {
-            title: "Return Picked Up",
-            body: `Your return for order #${order.orderNumber} has been picked up`,
-            data: { orderId: order._id, returnId: returnRequest._id }
-          }, customer._id);
+          await sendCustomerNotification(
+            customer.fcmToken,
+            {
+              title: "Return Picked Up",
+              body: `Your return for order #${order.orderNumber} has been picked up`,
+              data: { orderId: order._id, returnId: returnRequest._id },
+            },
+            customer._id
+          );
         }
 
         // Notify seller
         const seller = await SellerUserAuth.findById(order.sellerId);
         if (seller && seller.fcmToken) {
-          await sendSellerNotification(seller.fcmToken, {
-            title: "Return Picked Up",
-            body: `Return for order #${order.orderNumber} has been picked up`,
-            data: { orderId: order._id, returnId: returnRequest._id }
-          }, seller._id);
+          await sendSellerNotification(
+            seller.fcmToken,
+            {
+              title: "Return Picked Up",
+              body: `Return for order #${order.orderNumber} has been picked up`,
+              data: { orderId: order._id, returnId: returnRequest._id },
+            },
+            seller._id
+          );
         }
       }
 
@@ -702,7 +871,267 @@ export const porterWebhook = async (req, res) => {
 
     console.log(payload);
 
-    return sendResponse(res, 200, true, "No action needed");
+    if (!order_id || !status) {
+      return sendResponse(res, 400, false, "Missing tracking ID or status");
+    }
+
+    const shipment = await Shipment.findOne({ trackingId: order_id });
+    if (!shipment) {
+      return sendResponse(res, 404, false, "Shipment not found");
+    }
+
+    const order = await Order.findById(shipment.orderId);
+    if (!order) {
+      return sendResponse(res, 404, false, "Order not found");
+    }
+
+    const seller = await SellerUserAuth.findById(order.sellerId);
+    const customer = await Customer.findById(order.customerId);
+
+    if (status === "order_accepted") {
+      const driver = order_details?.driver_details || {};
+      const location = order_details?.partner_location || {};
+
+      shipment.partner_name = driver.driver_name;
+      shipment.partner_vehicle_number = driver.vehicle_number;
+      shipment.partner_mobile = driver.mobile;
+      shipment.partner_lat = location.lat?.toString() || "";
+      shipment.partner_lng = location.long?.toString() || "";
+      shipment.currentStatus = "Accepted";
+
+      await shipment.save();
+
+      await ShipmentHistory.create({
+        shipmentId: shipment._id,
+        currentStatus: "Accepted",
+        partner_lat: location.lat?.toString() || "",
+        partner_lng: location.long?.toString() || "",
+        location:
+          location.lat && location.long
+            ? `${location.lat},${location.long}`
+            : "",
+        description: `Partner assigned: ${driver.driver_name}, Vehicle: ${driver.vehicle_number}, Mobile: ${driver.mobile}`,
+      });
+
+      order.orderStatus = "Partner Assigned";
+      await order.save();
+
+      if (seller?.fcmToken) {
+        await sendSellerNotification(
+          seller.fcmToken,
+          {
+            title: "Pickup Partner Assigned",
+            body: `Order #${order.orderNumber} is ready for pickup by ${driver.driver_name}`,
+            data: {
+              orderId: order._id,
+              shipmentId: shipment._id,
+              status: "Partner Assigned",
+            },
+          },
+          seller._id
+        );
+      }
+
+      if (customer?.fcmToken) {
+        await sendCustomerNotification(
+          customer.fcmToken,
+          {
+            title: "Pickup Partner Assigned",
+            body: `A delivery partner is assigned order #${order.orderNumber}`,
+            data: {
+              orderId: order._id,
+              shipmentId: shipment._id,
+              status: "Partner Assigned",
+            },
+          },
+          customer._id
+        );
+      }
+    } else if (status === "order_start_trip") {
+      const location = order_details?.partner_location || {};
+      const estimatedFare = order_details?.estimated_trip_fare;
+
+      shipment.currentStatus = "Trip Started";
+      await shipment.save();
+
+      await ShipmentHistory.create({
+        shipmentId: shipment._id,
+        currentStatus: "Trip Started",
+        partner_lat: location.lat?.toString() || "",
+        partner_lng: location.long?.toString() || "",
+        location:
+          location.lat && location.long
+            ? `${location.lat},${location.long}`
+            : "",
+        description: `Trip started${
+          estimatedFare ? ` | Estimated Fare: ₹${estimatedFare}` : ""
+        }`,
+      });
+
+      order.orderStatus = "Out For Delivery";
+      await order.save();
+
+      if (seller?.fcmToken) {
+        await sendSellerNotification(
+          seller.fcmToken,
+          {
+            title: "Pickup Partner En Route",
+            body: `Delivery partner is on the way for order #${order.orderNumber}`,
+            data: {
+              orderId: order._id,
+              shipmentId: shipment._id,
+              status: "Out For Delivery",
+            },
+          },
+          seller._id
+        );
+      }
+
+      if (customer?.fcmToken) {
+        await sendCustomerNotification(
+          customer.fcmToken,
+          {
+            title: "Pickup Partner On The Way",
+            body: `Your delivery partner is on the way with your order #${order.orderNumber}`,
+            data: {
+              orderId: order._id,
+              shipmentId: shipment._id,
+              status: "Out For Delivery",
+            },
+          },
+          customer._id
+        );
+      }
+    } else if (status === "order_end_job") {
+      shipment.currentStatus = "Delivered";
+      shipment.deliveryFee = order_details?.actual_trip_fare;
+      await shipment.save();
+
+      await ShipmentHistory.create({
+        shipmentId: shipment._id,
+        currentStatus: "Delivered",
+        description: `Trip completed. Actual fare: ₹${
+          order_details?.actual_trip_fare || "N/A"
+        }`,
+      });
+
+      order.orderStatus = "Delivered";
+      await order.save();
+
+      if (seller?.fcmToken) {
+        await sendSellerNotification(
+          seller.fcmToken,
+          {
+            title: "Order Delivered",
+            body: `Order #${order.orderNumber} has been delivered successfully.`,
+            data: {
+              orderId: order._id,
+              shipmentId: shipment._id,
+              status: "Delivered",
+            },
+          },
+          seller._id
+        );
+      }
+
+      const customer = await Customer.findById(order.customerId);
+      if (customer?.fcmToken) {
+        await sendCustomerNotification(
+          customer.fcmToken,
+          {
+            title: "Order Delivered",
+            body: `Your order #${order.orderNumber} has been delivered successfully.`,
+            data: {
+              orderId: order._id,
+              shipmentId: shipment._id,
+              status: "Delivered",
+            },
+          },
+          customer._id
+        );
+      }
+    } else if (status === "order_reopen") {
+      shipment.partner_name = null;
+      shipment.partner_vehicle_number = null;
+      shipment.partner_mobile = null;
+      shipment.partner_lat = null;
+      shipment.partner_lng = null;
+      shipment.deliveryFee = null;
+      await shipment.save();
+
+      await ShipmentHistory.create({
+        shipmentId: shipment._id,
+        currentStatus: "Reopened",
+        partner_lat: null,
+        partner_lng: null,
+        location: "",
+        description: "Driver cancelled. Attempting to assign new partner.",
+      });
+
+      if (seller?.fcmToken) {
+        await sendSellerNotification(
+          seller.fcmToken,
+          {
+            title: "Delivery Partner Reassignment",
+            body: `Delivery partner for order #${order.orderNumber} cancelled. Reassigning a new one.`,
+            data: {
+              orderId: order._id,
+              shipmentId: shipment._id,
+              status: "Reopened",
+            },
+          },
+          seller._id
+        );
+      }
+    } else if (status === "order_cancel") {
+      shipment.currentStatus = "Cancelled";
+      await shipment.save();
+
+      await ShipmentHistory.create({
+        shipmentId: shipment._id,
+        currentStatus: "Cancelled",
+        partner_lat: null,
+        partner_lng: null,
+        location: "",
+        description: "Order has been cancelled by delivery partner.",
+      });
+
+      order.orderStatus = "Cancelled";
+      await order.save();
+
+      if (seller?.fcmToken) {
+        await sendSellerNotification(
+          seller.fcmToken,
+          {
+            title: "Order Cancelled by delivery partner",
+            body: `Order #${order.orderNumber} has been cancelled by delivery partner.`,
+            data: {
+              orderId: order._id,
+              shipmentId: shipment._id,
+              status: "Cancelled",
+            },
+          },
+          seller._id
+        );
+      }
+
+      if (customer?.fcmToken) {
+        await sendCustomerNotification(
+          customer.fcmToken,
+          {
+            title: "Order Cancelled",
+            body: `Your order #${order.orderNumber} has been cancelled.`,
+            data: {
+              orderId: order._id,
+              status: "Cancelled",
+            },
+          },
+          customer._id
+        );
+      }
+    }
+
+    return sendResponse(res, 200, true, "Porter Webhook Success");
   } catch (err) {
     console.error("Porter Webhook Error:", err);
     return sendResponse(res, 500, false, "Internal server error");
@@ -743,10 +1172,10 @@ export const shiprocketWebhookHandler = async (req, res) => {
 };
 
 /**
- * 
- * @param {Refund} req 
- * @param {*} res 
- * @returns 
+ *
+ * @param {Refund} req
+ * @param {*} res
+ * @returns
  */
 export const processRefund = async (req, res) => {
   try {
@@ -758,22 +1187,41 @@ export const processRefund = async (req, res) => {
 
     const order = await Order.findById(returnDoc.orderId);
     if (!order || order.paymentStatus !== "Success") {
-      return sendResponse(res, 400, false, "Refund not allowed. Order not paid.");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Refund not allowed. Order not paid."
+      );
     }
     if (returnDoc.refundStatus === "Completed") {
-      return sendResponse(res, 400, false, "Refund already completed for this return.");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Refund already completed for this return."
+      );
     }
     if (returnDoc.status !== "Picked Up") {
-      return sendResponse(res, 400, false, "Return must be in 'Picked Up' status before refund");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Return must be in 'Picked Up' status before refund"
+      );
     }
 
     const returnProducts = await ReturnProduct.find({ returnId: id });
 
-    const orderItemIds = returnProducts.map(rp => rp.orderItemId);
+    const orderItemIds = returnProducts.map((rp) => rp.orderItemId);
     const orderItems = await OrderItem.find({ _id: { $in: orderItemIds } });
 
-    if(!orderItems) return sendResponse(res, 400, false, "OrderItems not found");
-    const refundAmount = orderItems.reduce((total, item) => total + item.totalAmount, 0);
+    if (!orderItems)
+      return sendResponse(res, 400, false, "OrderItems not found");
+    const refundAmount = orderItems.reduce(
+      (total, item) => total + item.totalAmount,
+      0
+    );
 
     returnDoc.refundStatus = "Processing";
     await returnDoc.save();
@@ -782,15 +1230,18 @@ export const processRefund = async (req, res) => {
     let refundStatus = "completed";
     let refundResponse = "";
 
-    console.log('returnDoc' ,returnDoc)
+    console.log("returnDoc", returnDoc);
     if (order.paymentTypeId === 2) {
-      refundData = await rezerpayRefundPayment(returnDoc.orderId.transactionId, refundAmount);
+      refundData = await rezerpayRefundPayment(
+        returnDoc.orderId.transactionId,
+        refundAmount
+      );
       refundStatus = refundData.status;
       refundResponse = JSON.stringify(refundData);
     } else if (order.paymentTypeId === 1) {
       refundData = {
         method: "COD",
-        info: "Manual refund via Wallet or UPI"
+        info: "Manual refund via Wallet or UPI",
       };
       refundResponse = JSON.stringify(refundData);
     } else {
@@ -800,10 +1251,10 @@ export const processRefund = async (req, res) => {
     const refund = await Refund.create({
       orderId: returnDoc.orderId._id,
       refundId: refundData.razorpayRefundId || `cod-${Date.now()}`,
-      refundAmount : roundToTwo(refundAmount),
+      refundAmount: roundToTwo(refundAmount),
       refundReason,
       refundStatus,
-      refundResponse
+      refundResponse,
     });
 
     // Send refund initiated notification
@@ -811,21 +1262,33 @@ export const processRefund = async (req, res) => {
       // Notify customer
       const customer = await Customer.findById(order.customerId);
       if (customer && customer.fcmToken) {
-        await sendCustomerNotification(customer.fcmToken, {
-          title: "Refund Initiated",
-          body: `Refund of ₹${roundToTwo(refundAmount)} has been initiated for order #${order.orderNumber}`,
-          data: { orderId: order._id, refundId: refund._id }
-        }, customer._id);
+        await sendCustomerNotification(
+          customer.fcmToken,
+          {
+            title: "Refund Initiated",
+            body: `Refund of ₹${roundToTwo(
+              refundAmount
+            )} has been initiated for order #${order.orderNumber}`,
+            data: { orderId: order._id, refundId: refund._id },
+          },
+          customer._id
+        );
       }
 
       // Notify seller
       const seller = await SellerUserAuth.findById(order.sellerId);
       if (seller && seller.fcmToken) {
-        await sendSellerNotification(seller.fcmToken, {
-          title: "Refund Initiated",
-          body: `Refund of ₹${roundToTwo(refundAmount)} has been initiated for order #${order.orderNumber}`,
-          data: { orderId: order._id, refundId: refund._id }
-        }, seller._id);
+        await sendSellerNotification(
+          seller.fcmToken,
+          {
+            title: "Refund Initiated",
+            body: `Refund of ₹${roundToTwo(
+              refundAmount
+            )} has been initiated for order #${order.orderNumber}`,
+            data: { orderId: order._id, refundId: refund._id },
+          },
+          seller._id
+        );
       }
     }
 
@@ -840,21 +1303,33 @@ export const processRefund = async (req, res) => {
       // Notify customer
       const customer = await Customer.findById(order.customerId);
       if (customer && customer.fcmToken) {
-        await sendCustomerNotification(customer.fcmToken, {
-          title: "Refund Completed",
-          body: `Refund of ₹${roundToTwo(refundAmount)} has been successfully processed for order #${order.orderNumber}`,
-          data: { orderId: order._id, refundId: refund._id }
-        }, customer._id);
+        await sendCustomerNotification(
+          customer.fcmToken,
+          {
+            title: "Refund Completed",
+            body: `Refund of ₹${roundToTwo(
+              refundAmount
+            )} has been successfully processed for order #${order.orderNumber}`,
+            data: { orderId: order._id, refundId: refund._id },
+          },
+          customer._id
+        );
       }
 
       // Notify seller
       const seller = await SellerUserAuth.findById(order.sellerId);
       if (seller && seller.fcmToken) {
-        await sendSellerNotification(seller.fcmToken, {
-          title: "Refund Completed",
-          body: `Refund of ₹${roundToTwo(refundAmount)} has been successfully processed for order #${order.orderNumber}`,
-          data: { orderId: order._id, refundId: refund._id }
-        }, seller._id);
+        await sendSellerNotification(
+          seller.fcmToken,
+          {
+            title: "Refund Completed",
+            body: `Refund of ₹${roundToTwo(
+              refundAmount
+            )} has been successfully processed for order #${order.orderNumber}`,
+            data: { orderId: order._id, refundId: refund._id },
+          },
+          seller._id
+        );
       }
     }
 
@@ -862,12 +1337,11 @@ export const processRefund = async (req, res) => {
       isRefunded: true,
       refundStatus: "Success",
     });
-    
+
     return sendResponse(res, 200, true, "Refund processed successfully", {
       return: returnDoc,
-      refund
+      refund,
     });
-
   } catch (err) {
     console.error(err);
     return sendResponse(res, 500, false, "Refund processing failed", err);
@@ -875,41 +1349,59 @@ export const processRefund = async (req, res) => {
 };
 
 /**
- * 
- * @param {Exchange} req 
- * @param {*} res 
- * @returns 
+ *
+ * @param {Exchange} req
+ * @param {*} res
+ * @returns
  */
-export const exchangeProduct  = async(req,res)=>{
+export const exchangeProduct = async (req, res) => {
   try {
     const customerId = req.id;
-    const {
-      orderId,
-      orderItemIds,
-      newSizeIds,
-      reason,
-      description
-    } = req.body;
+    const { orderId, orderItemIds, newSizeIds, reason, description } = req.body;
 
     let parsedOrderItemIds;
     let parsedNewSizeIds;
     try {
-      parsedOrderItemIds = typeof orderItemIds === "string" ? JSON.parse(orderItemIds) : orderItemIds;
-      parsedNewSizeIds = typeof newSizeIds === "string" ? JSON.parse(newSizeIds) : newSizeIds;
+      parsedOrderItemIds =
+        typeof orderItemIds === "string"
+          ? JSON.parse(orderItemIds)
+          : orderItemIds;
+      parsedNewSizeIds =
+        typeof newSizeIds === "string" ? JSON.parse(newSizeIds) : newSizeIds;
     } catch (err) {
-      return sendResponse(res, 400, false, "orderItemIds & parsedNewSizeIds must be a valid JSON array.");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "orderItemIds & parsedNewSizeIds must be a valid JSON array."
+      );
     }
 
     if (!Array.isArray(parsedOrderItemIds) || parsedOrderItemIds.length === 0) {
-      return sendResponse(res, 400, false, "orderItemIds must be a non-empty array.");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "orderItemIds must be a non-empty array."
+      );
     }
 
     if (!Array.isArray(parsedNewSizeIds) || parsedNewSizeIds.length === 0) {
-      return sendResponse(res, 400, false, "sizeId's must be a non-empty array.");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "sizeId's must be a non-empty array."
+      );
     }
 
     if (!orderId || !parsedOrderItemIds || !parsedNewSizeIds || !reason) {
-      return sendResponse(res, 400, false, "All required fields must be filled");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "All required fields must be filled"
+      );
     }
 
     const order = await Order.findById(orderId);
@@ -943,9 +1435,14 @@ export const exchangeProduct  = async(req,res)=>{
 
     // If size check fails
     if (productSizes.length !== parsedNewSizeIds.length) {
-      return sendResponse(res, 400, false, "One or more selected sizes are out of stock or invalid.");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "One or more selected sizes are out of stock or invalid."
+      );
     }
-    
+
     const exchangeDoc = await Exchange.create({
       orderId,
       customerId,
@@ -953,9 +1450,8 @@ export const exchangeProduct  = async(req,res)=>{
       sellerId: order.sellerId,
       reason,
       description,
-      image : primaryImageUrl,
+      image: primaryImageUrl,
     });
-
 
     const exchangeProducts = parsedOrderItemIds.map((orderItemId, i) => ({
       exchangeId: exchangeDoc._id,
@@ -964,19 +1460,33 @@ export const exchangeProduct  = async(req,res)=>{
     }));
     await ExchangeProduct.insertMany(exchangeProducts);
 
-    const customerAddress = await CustomerAddress.findById(order.customerAddressId);
-    if (!customerAddress) return sendResponse(res, 404, false, "Customer address not found");
+    const customerAddress = await CustomerAddress.findById(
+      order.customerAddressId
+    );
+    if (!customerAddress)
+      return sendResponse(res, 404, false, "Customer address not found");
 
     let pickupInfo, shipmentProviderName;
     if (order.paymentTypeId === 1) {
-      pickupInfo = await createShiprocketReversePickup(order, exchangeDoc, customerAddress, orderItemIds);
+      pickupInfo = await createShiprocketReversePickup(
+        order,
+        exchangeDoc,
+        customerAddress,
+        orderItemIds
+      );
       shipmentProviderName = "Shiprocket";
     } else {
-      pickupInfo = await createPorterReversePickup(order, exchangeDoc, customerAddress);
+      pickupInfo = await createPorterReversePickup(
+        order,
+        exchangeDoc,
+        customerAddress
+      );
       shipmentProviderName = "Porter";
     }
 
-    const shipmentProvider = await ShipmentProvider.findOne({ name: shipmentProviderName });
+    const shipmentProvider = await ShipmentProvider.findOne({
+      name: shipmentProviderName,
+    });
     exchangeDoc.shipmentProviderId = shipmentProvider?._id || null;
     exchangeDoc.trackingId = pickupInfo?.trackingId || null;
     exchangeDoc.pickupDate = pickupInfo?.pickup_scheduled_date || null;
@@ -985,45 +1495,75 @@ export const exchangeProduct  = async(req,res)=>{
     exchangeDoc.response = JSON.stringify(pickupInfo);
     await exchangeDoc.save();
 
-    return sendResponse(res, 200, true, "Exchange initiated successfully", exchangeDoc);
+    return sendResponse(
+      res,
+      200,
+      true,
+      "Exchange initiated successfully",
+      exchangeDoc
+    );
   } catch (error) {
     console.error(error);
     return sendResponse(res, 500, false, error.message);
   }
-}
+};
 
 /**
- * 
- * @param {*updateExchangeStatus} req 
- * @param {*} res 
- * @returns 
+ *
+ * @param {*updateExchangeStatus} req
+ * @param {*} res
+ * @returns
  */
 export const updateExchangeStatus = async (req, res) => {
   try {
     const { trackingId } = req.body;
 
-    if (!trackingId) return sendResponse(res, 400, false, "Tracking ID is required");
+    if (!trackingId)
+      return sendResponse(res, 400, false, "Tracking ID is required");
 
     const exchange = await Exchange.findOne({ trackingId });
 
-    if (!exchange) return sendResponse(res, 404, false, "Exchange not found with this tracking ID");
+    if (!exchange)
+      return sendResponse(
+        res,
+        404,
+        false,
+        "Exchange not found with this tracking ID"
+      );
 
     if (exchange.status === "Picked Up") {
-      return sendResponse(res, 400, false, "Exchange is already marked as Picked Up");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Exchange is already marked as Picked Up"
+      );
     }
 
-    const exchangeProducts = await ExchangeProduct.find({ exchangeId: exchange._id });
+    const exchangeProducts = await ExchangeProduct.find({
+      exchangeId: exchange._id,
+    });
 
     // Loop over each exchanged product and update new size stock
     for (const item of exchangeProducts) {
       const productSize = await ProductSize.findById(item.newSizeId);
 
       if (!productSize) {
-        return sendResponse(res, 404, false, `Size not found for item ${item._id}`);
+        return sendResponse(
+          res,
+          404,
+          false,
+          `Size not found for item ${item._id}`
+        );
       }
 
       if (productSize.quantity <= 0) {
-        return sendResponse(res, 400, false, `Size '${productSize.size}' is out of stock`);
+        return sendResponse(
+          res,
+          400,
+          false,
+          `Size '${productSize.size}' is out of stock`
+        );
       }
 
       productSize.quantity -= 1;
@@ -1033,7 +1573,13 @@ export const updateExchangeStatus = async (req, res) => {
     exchange.status = "Picked Up";
     await exchange.save();
 
-    return sendResponse(res, 200, true, "Exchange status updated and size stock adjusted", exchange);
+    return sendResponse(
+      res,
+      200,
+      true,
+      "Exchange status updated and size stock adjusted",
+      exchange
+    );
   } catch (error) {
     console.error("Error updating exchange status:", error);
     return sendResponse(res, 500, false, "Failed to update exchange status");
@@ -1041,10 +1587,10 @@ export const updateExchangeStatus = async (req, res) => {
 };
 
 /**
- * 
- * @param {Exchange webhook} req 
- * @param {*} res 
- * @returns 
+ *
+ * @param {Exchange webhook} req
+ * @param {*} res
+ * @returns
  */
 export const handleExchangeWebhook = async (req, res) => {
   try {
@@ -1056,7 +1602,10 @@ export const handleExchangeWebhook = async (req, res) => {
     if (payload.shipment_id && payload.status === "Pickup Completed") {
       // Shiprocket webhook
       trackingId = payload.shipment_id;
-    } else if (payload.data?.tracking_id && payload.data?.status === "pickup_completed") {
+    } else if (
+      payload.data?.tracking_id &&
+      payload.data?.status === "pickup_completed"
+    ) {
       // Porter webhook
       trackingId = payload.data.tracking_id;
     } else {
@@ -1071,7 +1620,6 @@ export const handleExchangeWebhook = async (req, res) => {
     return sendResponse(res, 500, false, err.message);
   }
 };
-
 
 /**
  *
@@ -1201,7 +1749,9 @@ export const getCustomerExchanges = async (req, res) => {
     const result = [];
 
     for (const ex of exchanges) {
-      const exchangeProducts = await ExchangeProduct.find({ exchangeId: ex._id }).lean();
+      const exchangeProducts = await ExchangeProduct.find({
+        exchangeId: ex._id,
+      }).lean();
 
       const products = [];
 
@@ -1212,7 +1762,9 @@ export const getCustomerExchanges = async (req, res) => {
         const product = await Product.findById(orderItem.productId).lean();
         if (!product) continue;
 
-        const oldSizeDoc = await ProductSize.findById(orderItem.productSizeId).lean();
+        const oldSizeDoc = await ProductSize.findById(
+          orderItem.productSizeId
+        ).lean();
         const newSizeDoc = await ProductSize.findById(item.newSizeId).lean();
 
         products.push({
@@ -1253,7 +1805,7 @@ export const getSellerExchanges = async (req, res) => {
     const sellerId = req.id;
     const { page, limit } = req.query;
 
-    const total = await Exchange.countDocuments({sellerId});
+    const total = await Exchange.countDocuments({ sellerId });
 
     const currentPage = Number(page) || 1;
     const perPage = Number(limit) || total || 1; // fallback to total if 0
@@ -1269,7 +1821,9 @@ export const getSellerExchanges = async (req, res) => {
     const result = [];
 
     for (const ex of exchanges) {
-      const exchangeProducts = await ExchangeProduct.find({ exchangeId: ex._id }).lean();
+      const exchangeProducts = await ExchangeProduct.find({
+        exchangeId: ex._id,
+      }).lean();
 
       const products = [];
 
@@ -1280,7 +1834,9 @@ export const getSellerExchanges = async (req, res) => {
         const product = await Product.findById(orderItem.productId).lean();
         if (!product) continue;
 
-        const oldSizeDoc = await ProductSize.findById(orderItem.productSizeId).lean();
+        const oldSizeDoc = await ProductSize.findById(
+          orderItem.productSizeId
+        ).lean();
         const newSizeDoc = await ProductSize.findById(item.newSizeId).lean();
 
         products.push({
@@ -1311,7 +1867,7 @@ export const getSellerExchanges = async (req, res) => {
         page: currentPage,
         limit: perPage,
         totalPages,
-      }
+      },
     });
   } catch (error) {
     console.error(error);
@@ -1330,7 +1886,12 @@ export const retunActionPerform = async (req, res) => {
     const { action, response } = req.body;
 
     if (!["approve", "reject"].includes(action)) {
-      return sendResponse(res, 400, false, "Invalid action. Use 'approve' or 'reject'.");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Invalid action. Use 'approve' or 'reject'."
+      );
     }
 
     const returnRequest = await Return.findById(id).populate("customerId");
@@ -1340,18 +1901,34 @@ export const retunActionPerform = async (req, res) => {
     }
 
     if (returnRequest.sellerId.toString() !== sellerId.toString()) {
-      return sendResponse(res, 403, false, "You are not authorized to perform this action.");
+      return sendResponse(
+        res,
+        403,
+        false,
+        "You are not authorized to perform this action."
+      );
     }
 
     if (returnRequest.status !== "Requested") {
-      return sendResponse(res, 400, false, `Return request is already ${returnRequest.status}.`);
+      return sendResponse(
+        res,
+        400,
+        false,
+        `Return request is already ${returnRequest.status}.`
+      );
     }
 
     if (action === "reject") {
       returnRequest.status = "Rejected";
       returnRequest.response = response || "No reason provided";
       await returnRequest.save();
-      return sendResponse(res, 200, true, "Return request rejected successfully.", returnRequest);
+      return sendResponse(
+        res,
+        200,
+        true,
+        "Return request rejected successfully.",
+        returnRequest
+      );
     }
 
     returnRequest.status = "Approved";
@@ -1360,13 +1937,15 @@ export const retunActionPerform = async (req, res) => {
     const customerAddress = await CustomerAddress.findOne({
       customerId: returnRequest.customerId._id,
       is_deleted: false,
-      }).sort({ createdAt: -1 });
+    }).sort({ createdAt: -1 });
 
     if (!customerAddress) {
       return sendResponse(res, 404, false, "Customer address not found.");
     }
 
-    const order = await Order.findById(returnRequest.orderId).populate('storeId').populate('sellerId');
+    const order = await Order.findById(returnRequest.orderId)
+      .populate("storeId")
+      .populate("sellerId");
     if (!order) {
       return sendResponse(res, 404, false, "Order not found.");
     }
@@ -1375,19 +1954,33 @@ export const retunActionPerform = async (req, res) => {
     let shipmentProviderName;
     if (paymentTypeId === 1) {
       // COD → Use Shiprocket
-      pickupInfo = await createShiprocketReversePickup(order, returnRequest,customerAddress);
-      shipmentProviderName = "Shiprocket"
+      pickupInfo = await createShiprocketReversePickup(
+        order,
+        returnRequest,
+        customerAddress
+      );
+      shipmentProviderName = "Shiprocket";
     } else {
       // Online → Use Porter
-      pickupInfo = await createPorterReversePickup(order, returnRequest,customerAddress);
-      shipmentProviderName = "Porter"
+      pickupInfo = await createPorterReversePickup(
+        order,
+        returnRequest,
+        customerAddress
+      );
+      shipmentProviderName = "Porter";
     }
 
     const shipmentProvider = await ShipmentProvider.findOne({
       name: shipmentProviderName,
     });
     if (!pickupInfo.success) {
-      return sendResponse(res, 500, false, "Reverse shipment creation failed.", pickupInfo.error);
+      return sendResponse(
+        res,
+        500,
+        false,
+        "Reverse shipment creation failed.",
+        pickupInfo.error
+      );
     }
 
     returnRequest.status = "Pickup Initiated";
@@ -1395,7 +1988,7 @@ export const retunActionPerform = async (req, res) => {
     returnRequest.trackingId = pickupInfo.trackingId;
     returnRequest.pickupAddress = pickupInfo.pickupAddress;
     returnRequest.pickupDate = pickupInfo.pickupDate;
-       
+
     await returnRequest.save();
 
     // Send pickup initiated notifications
@@ -1403,25 +1996,39 @@ export const retunActionPerform = async (req, res) => {
       // Notify customer
       const customer = await Customer.findById(order.customerId);
       if (customer && customer.fcmToken) {
-        await sendCustomerNotification(customer.fcmToken, {
-          title: "Return Pickup Initiated",
-          body: `Your return pickup for order #${order.orderNumber} has been initiated`,
-          data: { orderId: order._id, returnId: returnRequest._id }
-        }, customer._id);
+        await sendCustomerNotification(
+          customer.fcmToken,
+          {
+            title: "Return Pickup Initiated",
+            body: `Your return pickup for order #${order.orderNumber} has been initiated`,
+            data: { orderId: order._id, returnId: returnRequest._id },
+          },
+          customer._id
+        );
       }
 
       // Notify seller
       const seller = await SellerUserAuth.findById(order.sellerId);
       if (seller && seller.fcmToken) {
-        await sendSellerNotification(seller.fcmToken, {
-          title: "Return Pickup Initiated",
-          body: `Return pickup for order #${order.orderNumber} has been initiated`,
-          data: { orderId: order._id, returnId: returnRequest._id }
-        }, seller._id);
+        await sendSellerNotification(
+          seller.fcmToken,
+          {
+            title: "Return Pickup Initiated",
+            body: `Return pickup for order #${order.orderNumber} has been initiated`,
+            data: { orderId: order._id, returnId: returnRequest._id },
+          },
+          seller._id
+        );
       }
     }
 
-    return sendResponse(res, 200, true, `Return request approved and pickup initiated.`, returnRequest);
+    return sendResponse(
+      res,
+      200,
+      true,
+      `Return request approved and pickup initiated.`,
+      returnRequest
+    );
   } catch (err) {
     console.error("Error in handleReturnAction:", err);
     return sendResponse(res, 500, false, "Failed to perform return action.");
@@ -1442,12 +2049,14 @@ export const createShipment = async (req, res) => {
     if (!order) return sendResponse(res, 404, false, "Order not found");
 
     const store = await StoreInfo.findById(order.storeId).populate({
-      path: 'sellerAuthId',
-      select: 'userInfo',
+      path: "sellerAuthId",
+      select: "userInfo",
     });
-    const customerAddress = await CustomerAddress.findById(order.customerAddressId).populate({
-      path : 'customerId',
-      select: 'fullName countryCode mobileNo altMobileNo'
+    const customerAddress = await CustomerAddress.findById(
+      order.customerAddressId
+    ).populate({
+      path: "customerId",
+      select: "fullName countryCode mobileNo altMobileNo",
     });
 
     if (!store || !customerAddress) {
@@ -1463,21 +2072,28 @@ export const createShipment = async (req, res) => {
     if (!shipmentProvider) {
       return sendResponse(res, 400, false, "Invalid shipment provider");
     }
-    console.log('shipmentProvider : ',shipmentProvider);
-    
+    console.log("shipmentProvider : ", shipmentProvider);
 
     let shipmentResponse;
-    if (shipmentProvider.name === 'Shiprocket') {
-      shipmentResponse = await createShiprocketShipment(order, store, customerAddress);
-    } else {
-      shipmentResponse = await createPorterShipment(order, store, customerAddress);
-    }
+    // if (shipmentProvider.name === "Shiprocket") {
+    //   shipmentResponse = await createShiprocketShipment(
+    //     order,
+    //     store,
+    //     customerAddress
+    //   );
+    // } else {
+    //   shipmentResponse = await createPorterShipment(
+    //     order,
+    //     store,
+    //     customerAddress
+    //   );
+    // }
 
-    // shipmentResponse = await createPorterShipment(
-    //   order,
-    //   store,
-    //   customerAddress
-    // );
+    shipmentResponse = await createPorterShipment(
+      order,
+      store,
+      customerAddress
+    );
 
     const shipment = await Shipment.create({
       orderId: order._id,
@@ -1500,8 +2116,8 @@ export const createShipment = async (req, res) => {
       dropPincode: customerAddress.pincode,
       dropCity: customerAddress.city,
       dropState: customerAddress.state,
-      dropLat: customerAddress.location.coordinates[1],
-      dropLng: customerAddress.location.coordinates[0],
+      dropLat: customerAddress.location.coordinates[0],
+      dropLng: customerAddress.location.coordinates[1],
       shipmentResponse: JSON.stringify(shipmentResponse?.raw),
       trackingUrl:
         shipmentResponse?.tracking_url ||
@@ -1513,21 +2129,29 @@ export const createShipment = async (req, res) => {
       // Notify customer
       const customer = await Customer.findById(order.customerId);
       if (customer && customer.fcmToken) {
-        await sendCustomerNotification(customer.fcmToken, {
-          title: "Shipment Created",
-          body: `Your order #${order.orderNumber} is ready for shipment`,
-          data: { orderId: order._id, shipmentId: shipment._id }
-        }, customer._id);
+        await sendCustomerNotification(
+          customer.fcmToken,
+          {
+            title: "Shipment Created",
+            body: `Your order #${order.orderNumber} is ready for shipment`,
+            data: { orderId: order._id, shipmentId: shipment._id },
+          },
+          customer._id
+        );
       }
 
       // Notify seller
       const seller = await SellerUserAuth.findById(order.sellerId);
       if (seller && seller.fcmToken) {
-        await sendSellerNotification(seller.fcmToken, {
-          title: "Shipment Created",
-          body: `Order #${order.orderNumber} is ready for shipment`,
-          data: { orderId: order._id, shipmentId: shipment._id }
-        }, seller._id);
+        await sendSellerNotification(
+          seller.fcmToken,
+          {
+            title: "Shipment Created",
+            body: `Order #${order.orderNumber} is ready for shipment`,
+            data: { orderId: order._id, shipmentId: shipment._id },
+          },
+          seller._id
+        );
       }
     }
 
@@ -1541,13 +2165,13 @@ export const createShipment = async (req, res) => {
 export const trackShipments = async () => {
   const activeShipments = await Shipment.find({
     currentStatus: { $nin: ["DELIVERED", "CANCELLED"] },
-  }).populate('shipmentProviderId');
-  console.log('activeShipments',activeShipments);
-  
+  }).populate("shipmentProviderId");
+  console.log("activeShipments", activeShipments);
+
   for (const shipment of activeShipments) {
     try {
       let trackingData;
-      console.log(typeof(shipment.shipmentProviderId.indexNumber))
+      console.log(typeof shipment.shipmentProviderId.indexNumber);
       if (shipment.shipmentProviderId.indexNumber == 2) {
         // Porter API
         const response = await axios.get(
@@ -1559,7 +2183,7 @@ export const trackShipments = async () => {
           }
         );
         trackingData = response.data;
-        console.log('Porter tracking data',trackingData);
+        console.log("Porter tracking data", trackingData);
       } else {
         // Shiprocket API
         const response = await axios.get(
@@ -1571,7 +2195,7 @@ export const trackShipments = async () => {
           }
         );
         trackingData = response.data;
-        console.log('Shiprocket tracking data',trackingData);
+        console.log("Shiprocket tracking data", trackingData);
       }
 
       // Update shipment status
@@ -1580,53 +2204,71 @@ export const trackShipments = async () => {
         await Shipment.findByIdAndUpdate(shipment._id, {
           currentStatus,
           lastUpdated: new Date(),
-          trackingData
+          trackingData,
         });
 
         // Update order status based on shipment status
         const order = await Order.findById(shipment.orderId);
         if (order) {
-          if (currentStatus === 'OUT_FOR_DELIVERY') {
-            await Order.findByIdAndUpdate(order._id, { status: 'out_for_delivery' });
-            
+          if (currentStatus === "OUT_FOR_DELIVERY") {
+            await Order.findByIdAndUpdate(order._id, {
+              status: "out_for_delivery",
+            });
+
             // Send out for delivery notification
             const customer = await Customer.findById(order.customerId);
             if (customer && customer.fcmToken) {
-              await sendCustomerNotification(customer.fcmToken, {
-                title: "Order Out for Delivery",
-                body: `Your order #${order.orderNumber} is out for delivery`,
-                data: { orderId: order._id, shipmentId: shipment._id }
-              }, customer._id);
+              await sendCustomerNotification(
+                customer.fcmToken,
+                {
+                  title: "Order Out for Delivery",
+                  body: `Your order #${order.orderNumber} is out for delivery`,
+                  data: { orderId: order._id, shipmentId: shipment._id },
+                },
+                customer._id
+              );
             }
 
             const seller = await SellerUserAuth.findById(order.sellerId);
             if (seller && seller.fcmToken) {
-              await sendSellerNotification(seller.fcmToken, {
-                title: "Order Out for Delivery",
-                body: `Order #${order.orderNumber} is out for delivery`,
-                data: { orderId: order._id, shipmentId: shipment._id }
-              }, seller._id);
+              await sendSellerNotification(
+                seller.fcmToken,
+                {
+                  title: "Order Out for Delivery",
+                  body: `Order #${order.orderNumber} is out for delivery`,
+                  data: { orderId: order._id, shipmentId: shipment._id },
+                },
+                seller._id
+              );
             }
-          } else if (currentStatus === 'DELIVERED') {
-            await Order.findByIdAndUpdate(order._id, { status: 'delivered' });
-            
+          } else if (currentStatus === "DELIVERED") {
+            await Order.findByIdAndUpdate(order._id, { status: "delivered" });
+
             // Send delivered notification
             const customer = await Customer.findById(order.customerId);
             if (customer && customer.fcmToken) {
-              await sendCustomerNotification(customer.fcmToken, {
-                title: "Order Delivered",
-                body: `Your order #${order.orderNumber} has been delivered successfully`,
-                data: { orderId: order._id, shipmentId: shipment._id }
-              }, customer._id);
+              await sendCustomerNotification(
+                customer.fcmToken,
+                {
+                  title: "Order Delivered",
+                  body: `Your order #${order.orderNumber} has been delivered successfully`,
+                  data: { orderId: order._id, shipmentId: shipment._id },
+                },
+                customer._id
+              );
             }
 
             const seller = await SellerUserAuth.findById(order.sellerId);
             if (seller && seller.fcmToken) {
-              await sendSellerNotification(seller.fcmToken, {
-                title: "Order Delivered",
-                body: `Order #${order.orderNumber} has been delivered successfully`,
-                data: { orderId: order._id, shipmentId: shipment._id }
-              }, seller._id);
+              await sendSellerNotification(
+                seller.fcmToken,
+                {
+                  title: "Order Delivered",
+                  body: `Order #${order.orderNumber} has been delivered successfully`,
+                  data: { orderId: order._id, shipmentId: shipment._id },
+                },
+                seller._id
+              );
             }
           }
         }
@@ -1641,11 +2283,13 @@ export const trackShipments = async () => {
 
       console.log(`Updated tracking for order: ${shipment.orderId}`);
     } catch (err) {
-      console.error(`Tracking failed for shipment ${shipment._id}:`, err.message);
+      console.error(
+        `Tracking failed for shipment ${shipment._id}:`,
+        err.message
+      );
     }
   }
 };
-
 
 /**
  *
@@ -1655,7 +2299,7 @@ export const trackShipments = async () => {
 export const listOrders = async (req, res) => {
   try {
     const { page, limit, customerId, sellerId, storeId, search } = req.body;
-    const match = {paymentStatus : 'Success'};
+    const match = { paymentStatus: "Success" };
 
     if (customerId) match.customerId = customerId;
     if (sellerId) match.sellerId = new mongoose.Types.ObjectId(sellerId);
@@ -1688,7 +2332,9 @@ export const listOrders = async (req, res) => {
 
     const ordersWithDetails = await Promise.all(
       orders.map(async (order) => {
-        const items = await OrderItem.find({ orderId: new mongoose.Types.ObjectId(order._id) })
+        const items = await OrderItem.find({
+          orderId: new mongoose.Types.ObjectId(order._id),
+        })
           .populate({ path: "categoryId", select: "name" })
           .populate({ path: "subcategoryId", select: "name" })
           .populate({ path: "color", select: "name image" })
@@ -1767,34 +2413,35 @@ export const getOrderDetails = async (req, res) => {
       .populate({ path: "subcategoryId", select: "name" })
       .populate({ path: "color", select: "name image" })
       .populate({
-            path: "productId",
-            select: "name primaryImage description sellingPrice",
-          })
+        path: "productId",
+        select: "name primaryImage description sellingPrice",
+      })
       .populate({
         path: "productSizeId",
         select: "sku",
       })
       .lean();
 
-       const enrichedItems = await Promise.all(items.map(async (item) => {
-      const proSizes = await ProductSize.find({
-        productId: item.productId?._id,
-        isDeleted: false
+    const enrichedItems = await Promise.all(
+      items.map(async (item) => {
+        const proSizes = await ProductSize.find({
+          productId: item.productId?._id,
+          isDeleted: false,
+        })
+          .select("size sku quantity")
+          .lean();
+
+        return {
+          ...item,
+          productImage: item.productId?.image || null,
+          categoryName: item.categoryId?.name || null,
+          subcategoryName: item.subcategoryId?.name || null,
+          colorName: item.color?.name || null,
+          colorImage: item.color?.image || null,
+          proSizes: proSizes || [],
+        };
       })
-        .select("size sku quantity")
-        .lean();
-
-      return {
-        ...item,
-        productImage: item.productId?.image || null,
-        categoryName: item.categoryId?.name || null,
-        subcategoryName: item.subcategoryId?.name || null,
-        colorName: item.color?.name || null,
-        colorImage: item.color?.image || null,
-        proSizes: proSizes || [],
-      };
-    }));
-
+    );
 
     const paymentType = await PaymentType.findOne({
       indexNumber: order.paymentTypeId,
@@ -1828,7 +2475,6 @@ export const getOrderDetails = async (req, res) => {
   }
 };
 
-
 /**
  *
  * RazorPay web-hook
@@ -1839,23 +2485,23 @@ export const razorpayWebhook = async (req, res) => {
   try {
     const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
 
-    const signature = req.headers['x-razorpay-signature'];
+    const signature = req.headers["x-razorpay-signature"];
     const body = JSON.stringify(req.body); // raw body
 
     const expectedSignature = crypto
-      .createHmac('sha256', webhookSecret)
+      .createHmac("sha256", webhookSecret)
       .update(body)
-      .digest('hex');
+      .digest("hex");
 
     if (signature !== expectedSignature) {
-      console.log('Invalid webhook signature');
-      return res.status(400).send('Invalid signature');
+      console.log("Invalid webhook signature");
+      return res.status(400).send("Invalid signature");
     }
 
     const event = req.body.event;
     const payload = req.body.payload;
 
-    if (event === 'payment.captured') {
+    if (event === "payment.captured") {
       const payment = payload.payment.entity;
 
       // Find and update your order
@@ -1863,17 +2509,17 @@ export const razorpayWebhook = async (req, res) => {
         { orderNumber: payment.receipt }, // match using receipt
         {
           transactionId: payment.id,
-          paymentStatus: 'Success',
-          paymentError: '',
+          paymentStatus: "Success",
+          paymentError: "",
         }
       );
 
-      console.log('Payment verified and order updated');
+      console.log("Payment verified and order updated");
     }
 
-    return res.status(200).send('Webhook received');
+    return res.status(200).send("Webhook received");
   } catch (error) {
-    console.error('Webhook error:', error.message);
-    return res.status(500).send('Internal Server Error');
+    console.error("Webhook error:", error.message);
+    return res.status(500).send("Internal Server Error");
   }
 };
