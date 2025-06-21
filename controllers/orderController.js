@@ -167,7 +167,7 @@ export const createOrder = async (req, res) => {
         {
           title: "New Order Placed",
           body: `Your order #${newOrder.orderNumber} has been placed successfully!`,
-          data: { orderId: newOrder._id },
+          data: { orderId: newOrder._id.toString() },
         },
         customer._id
       );
@@ -181,7 +181,7 @@ export const createOrder = async (req, res) => {
         {
           title: "New Order Received",
           body: `You received a new order #${newOrder.orderNumber}!`,
-          data: { orderId: newOrder._id },
+          data: { orderId: newOrder._id.toString() },
         },
         seller._id
       );
@@ -293,7 +293,7 @@ export const updateOrderStatusBySeller = async (req, res) => {
         {
           title: `Order Status Updated`,
           body: `Your order #${order.orderNumber} status is now ${status}`,
-          data: { orderId: order._id, status },
+          data: { orderId: order._id.toString(), status },
         },
         customer._id
       );
@@ -307,7 +307,7 @@ export const updateOrderStatusBySeller = async (req, res) => {
         {
           title: `Order Status Updated`,
           body: `Order #${order.orderNumber} status is now ${status}`,
-          data: { orderId: order._id, status },
+          data: { orderId: order._id.toString(), status },
         },
         seller._id
       );
@@ -403,7 +403,7 @@ export const updateOrderStatusBySeller = async (req, res) => {
           {
             title: "Shipment Created",
             body: `Your order #${order.orderNumber} is ready for shipment`,
-            data: { orderId: order._id, shipmentId: shipment._id },
+            data: { orderId: order._id.toString(), shipmentId: shipment._id.toString() },
           },
           customer._id
         );
@@ -415,7 +415,7 @@ export const updateOrderStatusBySeller = async (req, res) => {
           {
             title: "Shipment Created",
             body: `Order #${order.orderNumber} is ready for shipment`,
-            data: { orderId: order._id, shipmentId: shipment._id },
+            data: { orderId: order._id.toString(), shipmentId: shipment._id.toString() },
           },
           seller._id
         );
@@ -541,7 +541,7 @@ export const verifyPayment = async (req, res) => {
           {
             title: "Payment Successful",
             body: `Your payment for order #${order.orderNumber} has been successful`,
-            data: { orderId: order._id },
+            data: { orderId: order._id.toString() },
           },
           customer._id
         );
@@ -555,7 +555,7 @@ export const verifyPayment = async (req, res) => {
           {
             title: "Payment Received",
             body: `You received payment for order #${order.orderNumber}`,
-            data: { orderId: order._id },
+            data: { orderId: order._id.toString() },
           },
           seller._id
         );
@@ -703,7 +703,7 @@ export const returnOrder = async (req, res) => {
         {
           title: "Return Request Received",
           body: `New return request for order #${orderId}`,
-          data: { orderId: orderId, returnId: returnRequest._id },
+          data: { orderId: orderId.toString(), returnId: returnRequest._id.toString() },
         },
         seller._id
       );
@@ -717,7 +717,7 @@ export const returnOrder = async (req, res) => {
         {
           title: "Return Request Submitted",
           body: `Your return request for order #${orderId} has been submitted`,
-          data: { orderId: orderId, returnId: returnRequest._id },
+          data: { orderId: orderId.toString(), returnId: returnRequest._id.toString() },
         },
         customer._id
       );
@@ -832,7 +832,7 @@ export const porterWebhookHandler = async (req, res) => {
             {
               title: "Return Picked Up",
               body: `Your return for order #${order.orderNumber} has been picked up`,
-              data: { orderId: order._id, returnId: returnRequest._id },
+              data: { orderId: order._id.toString(), returnId: returnRequest._id.toString() },
             },
             customer._id
           );
@@ -846,7 +846,7 @@ export const porterWebhookHandler = async (req, res) => {
             {
               title: "Return Picked Up",
               body: `Return for order #${order.orderNumber} has been picked up`,
-              data: { orderId: order._id, returnId: returnRequest._id },
+              data: { orderId: order._id.toString(), returnId: returnRequest._id.toString() },
             },
             seller._id
           );
@@ -923,8 +923,8 @@ export const porterWebhook = async (req, res) => {
             title: "Pickup Partner Assigned",
             body: `Order #${order.orderNumber} is ready for pickup by ${driver.driver_name}`,
             data: {
-              orderId: order._id,
-              shipmentId: shipment._id,
+              orderId: order._id.toString(),
+              shipmentId: shipment._id.toString(),
               status: "Partner Assigned",
             },
           },
@@ -939,8 +939,8 @@ export const porterWebhook = async (req, res) => {
             title: "Pickup Partner Assigned",
             body: `A delivery partner is assigned order #${order.orderNumber}`,
             data: {
-              orderId: order._id,
-              shipmentId: shipment._id,
+              orderId: order._id.toString(),
+              shipmentId: shipment._id.toString(),
               status: "Partner Assigned",
             },
           },
@@ -978,8 +978,8 @@ export const porterWebhook = async (req, res) => {
             title: "Pickup Partner En Route",
             body: `Delivery partner is on the way for order #${order.orderNumber}`,
             data: {
-              orderId: order._id,
-              shipmentId: shipment._id,
+              orderId: order._id.toString(),
+              shipmentId: shipment._id.toString(),
               status: "Out For Delivery",
             },
           },
@@ -994,8 +994,8 @@ export const porterWebhook = async (req, res) => {
             title: "Pickup Partner On The Way",
             body: `Your delivery partner is on the way with your order #${order.orderNumber}`,
             data: {
-              orderId: order._id,
-              shipmentId: shipment._id,
+              orderId: order._id.toString(),
+              shipmentId: shipment._id.toString(),
               status: "Out For Delivery",
             },
           },
@@ -1025,8 +1025,8 @@ export const porterWebhook = async (req, res) => {
             title: "Order Delivered",
             body: `Order #${order.orderNumber} has been delivered successfully.`,
             data: {
-              orderId: order._id,
-              shipmentId: shipment._id,
+              orderId: order._id.toString(),
+              shipmentId: shipment._id.toString(),
               status: "Delivered",
             },
           },
@@ -1042,8 +1042,8 @@ export const porterWebhook = async (req, res) => {
             title: "Order Delivered",
             body: `Your order #${order.orderNumber} has been delivered successfully.`,
             data: {
-              orderId: order._id,
-              shipmentId: shipment._id,
+              orderId: order._id.toString(),
+              shipmentId: shipment._id.toString(),
               status: "Delivered",
             },
           },
@@ -1075,8 +1075,8 @@ export const porterWebhook = async (req, res) => {
             title: "Delivery Partner Reassignment",
             body: `Delivery partner for order #${order.orderNumber} cancelled. Reassigning a new one.`,
             data: {
-              orderId: order._id,
-              shipmentId: shipment._id,
+              orderId: order._id.toString(),
+              shipmentId: shipment._id.toString(),
               status: "Reopened",
             },
           },
@@ -1106,8 +1106,8 @@ export const porterWebhook = async (req, res) => {
             title: "Order Cancelled by delivery partner",
             body: `Order #${order.orderNumber} has been cancelled by delivery partner.`,
             data: {
-              orderId: order._id,
-              shipmentId: shipment._id,
+              orderId: order._id.toString(),
+              shipmentId: shipment._id.toString(),
               status: "Cancelled",
             },
           },
@@ -1122,7 +1122,7 @@ export const porterWebhook = async (req, res) => {
             title: "Order Cancelled",
             body: `Your order #${order.orderNumber} has been cancelled.`,
             data: {
-              orderId: order._id,
+              orderId: order._id.toString(),
               status: "Cancelled",
             },
           },
@@ -1269,7 +1269,7 @@ export const processRefund = async (req, res) => {
             body: `Refund of ₹${roundToTwo(
               refundAmount
             )} has been initiated for order #${order.orderNumber}`,
-            data: { orderId: order._id, refundId: refund._id },
+            data: { orderId: order._id.toString(), refundId: refund._id.toString() },
           },
           customer._id
         );
@@ -1285,7 +1285,7 @@ export const processRefund = async (req, res) => {
             body: `Refund of ₹${roundToTwo(
               refundAmount
             )} has been initiated for order #${order.orderNumber}`,
-            data: { orderId: order._id, refundId: refund._id },
+            data: { orderId: order._id.toString(), refundId: refund._id.toString() },
           },
           seller._id
         );
@@ -1310,7 +1310,7 @@ export const processRefund = async (req, res) => {
             body: `Refund of ₹${roundToTwo(
               refundAmount
             )} has been successfully processed for order #${order.orderNumber}`,
-            data: { orderId: order._id, refundId: refund._id },
+            data: { orderId: order._id.toString(), refundId: refund._id.toString() },
           },
           customer._id
         );
@@ -1326,7 +1326,7 @@ export const processRefund = async (req, res) => {
             body: `Refund of ₹${roundToTwo(
               refundAmount
             )} has been successfully processed for order #${order.orderNumber}`,
-            data: { orderId: order._id, refundId: refund._id },
+            data: { orderId: order._id.toString(), refundId: refund._id.toString() },
           },
           seller._id
         );
@@ -2001,7 +2001,7 @@ export const retunActionPerform = async (req, res) => {
           {
             title: "Return Pickup Initiated",
             body: `Your return pickup for order #${order.orderNumber} has been initiated`,
-            data: { orderId: order._id, returnId: returnRequest._id },
+            data: { orderId: order._id.toString(), returnId: returnRequest._id.toString() },
           },
           customer._id
         );
@@ -2015,7 +2015,7 @@ export const retunActionPerform = async (req, res) => {
           {
             title: "Return Pickup Initiated",
             body: `Return pickup for order #${order.orderNumber} has been initiated`,
-            data: { orderId: order._id, returnId: returnRequest._id },
+            data: { orderId: order._id.toString(), returnId: returnRequest._id.toString() },
           },
           seller._id
         );
@@ -2134,7 +2134,7 @@ export const createShipment = async (req, res) => {
           {
             title: "Shipment Created",
             body: `Your order #${order.orderNumber} is ready for shipment`,
-            data: { orderId: order._id, shipmentId: shipment._id },
+            data: { orderId: order._id.toString(), shipmentId: shipment._id.toString() },
           },
           customer._id
         );
@@ -2148,7 +2148,7 @@ export const createShipment = async (req, res) => {
           {
             title: "Shipment Created",
             body: `Order #${order.orderNumber} is ready for shipment`,
-            data: { orderId: order._id, shipmentId: shipment._id },
+            data: { orderId: order._id.toString(), shipmentId: shipment._id.toString() },
           },
           seller._id
         );
@@ -2223,7 +2223,7 @@ export const trackShipments = async () => {
                 {
                   title: "Order Out for Delivery",
                   body: `Your order #${order.orderNumber} is out for delivery`,
-                  data: { orderId: order._id, shipmentId: shipment._id },
+                  data: { orderId: order._id.toString(), shipmentId: shipment._id.toString() },
                 },
                 customer._id
               );
@@ -2236,7 +2236,7 @@ export const trackShipments = async () => {
                 {
                   title: "Order Out for Delivery",
                   body: `Order #${order.orderNumber} is out for delivery`,
-                  data: { orderId: order._id, shipmentId: shipment._id },
+                  data: { orderId: order._id.toString(), shipmentId: shipment._id.toString() },
                 },
                 seller._id
               );
@@ -2252,7 +2252,7 @@ export const trackShipments = async () => {
                 {
                   title: "Order Delivered",
                   body: `Your order #${order.orderNumber} has been delivered successfully`,
-                  data: { orderId: order._id, shipmentId: shipment._id },
+                  data: { orderId: order._id.toString(), shipmentId: shipment._id.toString() },
                 },
                 customer._id
               );
@@ -2265,7 +2265,7 @@ export const trackShipments = async () => {
                 {
                   title: "Order Delivered",
                   body: `Order #${order.orderNumber} has been delivered successfully`,
-                  data: { orderId: order._id, shipmentId: shipment._id },
+                  data: { orderId: order._id.toString(), shipmentId: shipment._id.toString() },
                 },
                 seller._id
               );
