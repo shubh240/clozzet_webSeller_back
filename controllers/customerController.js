@@ -492,3 +492,28 @@ export const deleteAddress = async (req, res) => {
     return sendResponse(res, 500, false, error.message);
   }
 };
+
+
+export const updateCustomerFcmToken = async (req, res) => {
+  try {
+    const customerId = req.id;
+    const { fcmToken } = req.body;
+    console.log(customerId)
+    if (!fcmToken) {
+      return sendResponse(res, 400, false, "FCM token is required");
+    }
+
+    const customer = await Customer.findById(customerId);
+    if (!customer) {
+      return sendResponse(res, 404, false, "customer not found");
+    }
+
+    customer.fcmToken = fcmToken;
+    await customer.save();
+
+    return sendResponse(res, 200, true, "FCM token updated successfully");
+  } catch (error) {
+    console.error("Update FCM token error:", error);
+    return sendResponse(res, 500, false, "Internal server error");
+  }
+};

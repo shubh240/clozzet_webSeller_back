@@ -9,7 +9,8 @@ import {
   getAllAddresses,
   getAddressById,
   updateAddress,
-  deleteAddress
+  deleteAddress,
+  updateCustomerFcmToken
 } from "../controllers/customerController.js";
 import isUserAuthenticated from "../middleware/isUserAuthenticated.js";
 import upload from "../middleware/multer.middleware.js";
@@ -26,6 +27,7 @@ router.put("/profile", isUserAuthenticated ,
   ]),
   updateProfile);
 
+router.put("/update-fcm-token", isUserAuthenticated, updateCustomerFcmToken)
 
 /**
  * Manage Address
