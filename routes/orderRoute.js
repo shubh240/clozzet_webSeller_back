@@ -15,7 +15,6 @@ import {
   getCustomerReturnRequests,
   retunActionPerform,
   shiprocketWebhookHandler,
-  porterWebhookHandler,
   processRefund,
   exchangeProduct,
   getCustomerExchanges,
@@ -63,9 +62,13 @@ router.post("/retunActionPerform/:id", isUserAuthenticated, retunActionPerform);
  * Webhook for Shiprocket & Porter
  */
 router.post("/shiprocket-webhook-handler", shiprocketWebhookHandler);
-router.post("/porter-webhook-handler", porterWebhookHandler);
 router.post("/porter-webhook", porterWebhook);
-router.post("/porter-webhook-test", porterWebhook);
+
+router.post("/porter-webhook-test", (req, res) => {
+  console.log("Porter Webhook Test Payload:", req.body);
+  res.status(200).json({ success: true, message: "Webhook received" });
+});
+
 
 router.post("/exchange-pickup-status", handleExchangeWebhook);
 

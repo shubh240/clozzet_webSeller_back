@@ -1,10 +1,10 @@
 import mongoose from "mongoose";
 
-const shipmentHistorySchema = new mongoose.Schema(
+const returnShipmentHistorySchema = new mongoose.Schema(
   {
-    shipmentId: {
+    returnId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Return",
+      ref: "Shipment",
       required: true,
     },
     currentStatus: {
@@ -32,8 +32,8 @@ const shipmentHistorySchema = new mongoose.Schema(
   }
 );
 
-export default mongoose.model("ShipmentHistory", shipmentHistorySchema);
-export const ShipmentHistory = mongoose.model(
-  "ShipmentHistory",
-  shipmentHistorySchema
+export default mongoose.model("ReturnShipmentHistory", returnShipmentHistorySchema);
+export const ReturnShipmentHistory = mongoose.model(
+  "ReturnShipmentHistory",
+  returnShipmentHistorySchema
 );

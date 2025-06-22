@@ -44,6 +44,7 @@ import {
 } from "../utils/firebase-admin.js";
 import { SellerUserAuth } from "../models/sellerUserInfo.model.js";
 import crypto from "crypto";
+import { ReturnShipmentHistory } from "../models/returnshipmentHistory.model.js";
 /**
  *
  * Create an order
@@ -403,7 +404,10 @@ export const updateOrderStatusBySeller = async (req, res) => {
           {
             title: "Shipment Created",
             body: `Your order #${order.orderNumber} is ready for shipment`,
-            data: { orderId: order._id.toString(), shipmentId: shipment._id.toString() },
+            data: {
+              orderId: order._id.toString(),
+              shipmentId: shipment._id.toString(),
+            },
           },
           customer._id
         );
@@ -415,7 +419,10 @@ export const updateOrderStatusBySeller = async (req, res) => {
           {
             title: "Shipment Created",
             body: `Order #${order.orderNumber} is ready for shipment`,
-            data: { orderId: order._id.toString(), shipmentId: shipment._id.toString() },
+            data: {
+              orderId: order._id.toString(),
+              shipmentId: shipment._id.toString(),
+            },
           },
           seller._id
         );
@@ -622,6 +629,7 @@ export const returnOrder = async (req, res) => {
     const order = await Order.findById(orderId)
       .populate("storeId")
       .populate("sellerId");
+
     if (!order) return sendResponse(res, 400, false, "Order not found.");
     if (
       !order.storeId ||
@@ -691,9 +699,12 @@ export const returnOrder = async (req, res) => {
       reason,
       description,
       image: primaryImageUrl,
-      status: "Requested",
+      status: "Return Initiated",
       refundStatus: "Pending",
     });
+
+    order.orderStatus = "Return Initiated";
+    await order.save();
 
     // Send return request notification to seller
     const seller = await SellerUserAuth.findById(order.sellerId);
@@ -703,13 +714,15 @@ export const returnOrder = async (req, res) => {
         {
           title: "Return Request Received",
           body: `New return request for order #${orderId}`,
-          data: { orderId: orderId.toString(), returnId: returnRequest._id.toString() },
+          data: {
+            orderId: orderId.toString(),
+            returnId: returnRequest._id.toString(),
+          },
         },
         seller._id
       );
     }
 
-    // Send confirmation to customer
     const customer = await Customer.findById(req.id);
     if (customer && customer.fcmToken) {
       await sendCustomerNotification(
@@ -717,7 +730,10 @@ export const returnOrder = async (req, res) => {
         {
           title: "Return Request Submitted",
           body: `Your return request for order #${orderId} has been submitted`,
-          data: { orderId: orderId.toString(), returnId: returnRequest._id.toString() },
+          data: {
+            orderId: orderId.toString(),
+            returnId: returnRequest._id.toString(),
+          },
         },
         customer._id
       );
@@ -778,8 +794,28 @@ export const returnOrder = async (req, res) => {
     returnRequest.status = "Pickup Initiated";
     returnRequest.shipmentProviderId = shipmentProvider._id;
     returnRequest.trackingId = pickupInfo.trackingId;
-    returnRequest.pickupAddress = pickupInfo.pickupAddress;
+    returnRequest.pickupAddress =
+      pickupInfo.pickupAddress.street_address1 || "";
+    returnRequest.pickupAddressUrl =
+      pickupInfo.pickupAddress?.address_url || "";
     returnRequest.pickupDate = pickupInfo.pickupDate;
+    returnRequest.pickupPincode = pickupInfo.pickupAddress?.pincode;
+    returnRequest.pickupCity = pickupInfo.pickupAddress?.city;
+    returnRequest.pickupState = pickupInfo.pickupAddress?.state;
+    returnRequest.pickupLat = pickupInfo.pickupAddress?.lat;
+    returnRequest.pickupLng = pickupInfo.pickupAddress?.lng;
+    returnRequest.pickupAddressType =
+      pickupInfo.pickupAddress?.apartment_address;
+
+    returnRequest.dropAddressLine1 = order.storeId?.storeAddress;
+    returnRequest.dropAddressLine2 = order.storeId?.city;
+    returnRequest.dropCity = order.storeId?.city;
+    returnRequest.dropState = order.storeId?.state;
+    returnRequest.dropPincode = order.storeId?.pincode;
+    returnRequest.dropLat = order.storeId?.position?.lat;
+    returnRequest.dropLng = order.storeId?.position?.lng;
+    returnRequest.shipmentResponse = pickupInfo.data || "";
+
     await returnRequest.save();
 
     return sendResponse(
@@ -803,67 +839,174 @@ export const returnOrder = async (req, res) => {
  * @param {*} res
  * @returns
  */
-export const porterWebhookHandler = async (req, res) => {
+export const porterWebhook = async (req, res) => {
   try {
-    const { tracking_id, status } = req.body;
-
-    if (!tracking_id || !status) {
-      return sendResponse(res, 400, false, "Invalid payload");
+    const payload = req.body;
+    const { order_id, status, order_details } = payload;
+    if (!order_id || !status) {
+      return sendResponse(res, 400, false, "Missing tracking ID or status");
     }
 
-    if (status === "PICKED_UP") {
-      const returnRequest = await Return.findOne({ trackingId: tracking_id });
+    // First check for a normal shipment
+    let shipment = await Shipment.findOne({ trackingId: order_id });
+    let returnRequest = null;
+    let order = null;
+    let isReturn = false;
 
+    // If not found, check in returns
+    if (!shipment) {
+      returnRequest = await Return.findOne({ trackingId: order_id }).populate('orderId');
       if (!returnRequest) {
-        return sendResponse(res, 404, false, "Return request not found");
+        return sendResponse(res, 404, false, "Shipment not found");
       }
-
-      returnRequest.status = "Picked Up";
-      await returnRequest.save();
-
-      // Send pickup completed notifications
-      const order = await Order.findById(returnRequest.orderId);
-      if (order) {
-        // Notify customer
-        const customer = await Customer.findById(order.customerId);
-        if (customer && customer.fcmToken) {
-          await sendCustomerNotification(
-            customer.fcmToken,
-            {
-              title: "Return Picked Up",
-              body: `Your return for order #${order.orderNumber} has been picked up`,
-              data: { orderId: order._id.toString(), returnId: returnRequest._id.toString() },
-            },
-            customer._id
-          );
-        }
-
-        // Notify seller
-        const seller = await SellerUserAuth.findById(order.sellerId);
-        if (seller && seller.fcmToken) {
-          await sendSellerNotification(
-            seller.fcmToken,
-            {
-              title: "Return Picked Up",
-              body: `Return for order #${order.orderNumber} has been picked up`,
-              data: { orderId: order._id.toString(), returnId: returnRequest._id.toString() },
-            },
-            seller._id
-          );
-        }
-      }
-
-      return sendResponse(res, 200, true, "Pickup marked as completed");
+      isReturn = true;
+      order = returnRequest.orderId;
+    } else {
+      order = await Order.findById(shipment.orderId);
+      if (!order) return sendResponse(res, 404, false, "Order not found");
     }
 
-    return sendResponse(res, 200, true, "No action needed");
+    const seller = await SellerUserAuth.findById(order.sellerId);
+    const customer = await Customer.findById(order.customerId);
+
+    const target = isReturn ? returnRequest : shipment;
+
+    if (status === "order_accepted") {
+      const driver = order_details?.driver_details || {};
+      const location = order_details?.partner_location || {};
+      Object.assign(target, {
+        partner_name: driver.driver_name,
+        partner_vehicle_number: driver.vehicle_number,
+        partner_mobile: driver.mobile,
+        partner_lat: location.lat?.toString() || "",
+        partner_lng: location.long?.toString() || "",
+        currentStatus: "Accepted",
+      });
+      await target.save();
+
+      const historyData = {
+        currentStatus: "Accepted",
+        partner_lat: location.lat?.toString() || "",
+        partner_lng: location.long?.toString() || "",
+        location: location.lat && location.long ? `${location.lat},${location.long}` : "",
+        description: `Partner assigned: ${driver.driver_name}, Vehicle: ${driver.vehicle_number}, Mobile: ${driver.mobile}`,
+      };
+
+      if (isReturn) {
+        await ReturnShipmentHistory.create({ returnId: returnRequest._id, ...historyData });
+        returnRequest.status = "Partner Assigned";
+        await returnRequest.save();
+      } else {
+        await ShipmentHistory.create({ shipmentId: shipment._id, ...historyData });
+        order.orderStatus = "Partner Assigned";
+        await order.save();
+      }
+
+    } else if (status === "order_start_trip") {
+      const location = order_details?.partner_location || {};
+      const estimatedFare = order_details?.estimated_trip_fare;
+
+      target.currentStatus = "Trip Started";
+      await target.save();
+
+      const historyData = {
+        currentStatus: "Trip Started",
+        partner_lat: location.lat?.toString() || "",
+        partner_lng: location.long?.toString() || "",
+        location: location.lat && location.long ? `${location.lat},${location.long}` : "",
+        description: `Trip started${estimatedFare ? ` | Estimated Fare: ₹${estimatedFare}` : ""}`,
+      };
+
+      if (isReturn) {
+        await ReturnShipmentHistory.create({ returnId: returnRequest._id, ...historyData });
+        returnRequest.status = "Out For Pickup";
+        await returnRequest.save();
+      } else {
+        await ShipmentHistory.create({ shipmentId: shipment._id, ...historyData });
+        order.orderStatus = "Out For Delivery";
+        await order.save();
+      }
+
+    } else if (status === "order_end_job") {
+      target.currentStatus = "Delivered";
+      target.deliveryFee = order_details?.actual_trip_fare;
+      await target.save();
+
+      const historyData = {
+        currentStatus: "Delivered",
+        description: `Trip completed. Actual fare: ₹${order_details?.actual_trip_fare || "N/A"}`,
+      };
+
+      if (isReturn) {
+        await ReturnShipmentHistory.create({ returnId: returnRequest._id, ...historyData });
+        returnRequest.status = "Picked Up";
+        await returnRequest.save();
+      } else {
+        await ShipmentHistory.create({ shipmentId: shipment._id, ...historyData });
+        order.orderStatus = "Delivered";
+        await order.save();
+      }
+
+    } else if (status === "order_reopen") {
+      Object.assign(target, {
+        partner_name: null,
+        partner_vehicle_number: null,
+        partner_mobile: null,
+        partner_lat: null,
+        partner_lng: null,
+        deliveryFee: null,
+      });
+      await target.save();
+
+      const historyData = {
+        currentStatus: "Reopened",
+        partner_lat: null,
+        partner_lng: null,
+        location: "",
+        description: "Driver cancelled. Attempting to assign new partner.",
+      };
+
+      if (isReturn) {
+        await ReturnShipmentHistory.create({ returnId: returnRequest._id, ...historyData });
+        returnRequest.status = "Reopened";
+        await returnRequest.save();
+      } else {
+        await ShipmentHistory.create({ shipmentId: shipment._id, ...historyData });
+        order.orderStatus = "Reopened";
+        await order.save();
+      }
+
+    } else if (status === "order_cancel") {
+      target.currentStatus = "Partner Cancelled";
+      await target.save();
+
+      const historyData = {
+        currentStatus: "Partner Cancelled",
+        partner_lat: null,
+        partner_lng: null,
+        location: "",
+        description: "Order has been cancelled by delivery partner.",
+      };
+
+      if (isReturn) {
+        await ReturnShipmentHistory.create({ returnId: returnRequest._id, ...historyData });
+        returnRequest.status = "Partner Cancelled";
+        await returnRequest.save();
+      } else {
+        await ShipmentHistory.create({ shipmentId: shipment._id, ...historyData });
+        order.orderStatus = "Partner Cancelled";
+        await order.save();
+      }
+    }
+
+    return sendResponse(res, 200, true, "Porter Webhook Success");
   } catch (err) {
     console.error("Porter Webhook Error:", err);
     return sendResponse(res, 500, false, "Internal server error");
   }
 };
 
-export const porterWebhook = async (req, res) => {
+export const porterWebhookOld = async (req, res) => {
   try {
     const payload = req.body;
 
@@ -1084,19 +1227,19 @@ export const porterWebhook = async (req, res) => {
         );
       }
     } else if (status === "order_cancel") {
-      shipment.currentStatus = "Cancelled";
+      shipment.currentStatus = "Partner Cancelled";
       await shipment.save();
 
       await ShipmentHistory.create({
         shipmentId: shipment._id,
-        currentStatus: "Cancelled",
+        currentStatus: "Partner Cancelled",
         partner_lat: null,
         partner_lng: null,
         location: "",
         description: "Order has been cancelled by delivery partner.",
       });
 
-      order.orderStatus = "Cancelled";
+      order.orderStatus = "Partner Cancelled";
       await order.save();
 
       if (seller?.fcmToken) {
@@ -1108,7 +1251,7 @@ export const porterWebhook = async (req, res) => {
             data: {
               orderId: order._id.toString(),
               shipmentId: shipment._id.toString(),
-              status: "Cancelled",
+              status: "Partner Cancelled",
             },
           },
           seller._id
@@ -1123,7 +1266,7 @@ export const porterWebhook = async (req, res) => {
             body: `Your order #${order.orderNumber} has been cancelled.`,
             data: {
               orderId: order._id.toString(),
-              status: "Cancelled",
+              status: "Partner Cancelled",
             },
           },
           customer._id
@@ -1269,7 +1412,10 @@ export const processRefund = async (req, res) => {
             body: `Refund of ₹${roundToTwo(
               refundAmount
             )} has been initiated for order #${order.orderNumber}`,
-            data: { orderId: order._id.toString(), refundId: refund._id.toString() },
+            data: {
+              orderId: order._id.toString(),
+              refundId: refund._id.toString(),
+            },
           },
           customer._id
         );
@@ -1285,7 +1431,10 @@ export const processRefund = async (req, res) => {
             body: `Refund of ₹${roundToTwo(
               refundAmount
             )} has been initiated for order #${order.orderNumber}`,
-            data: { orderId: order._id.toString(), refundId: refund._id.toString() },
+            data: {
+              orderId: order._id.toString(),
+              refundId: refund._id.toString(),
+            },
           },
           seller._id
         );
@@ -1310,7 +1459,10 @@ export const processRefund = async (req, res) => {
             body: `Refund of ₹${roundToTwo(
               refundAmount
             )} has been successfully processed for order #${order.orderNumber}`,
-            data: { orderId: order._id.toString(), refundId: refund._id.toString() },
+            data: {
+              orderId: order._id.toString(),
+              refundId: refund._id.toString(),
+            },
           },
           customer._id
         );
@@ -1326,7 +1478,10 @@ export const processRefund = async (req, res) => {
             body: `Refund of ₹${roundToTwo(
               refundAmount
             )} has been successfully processed for order #${order.orderNumber}`,
-            data: { orderId: order._id.toString(), refundId: refund._id.toString() },
+            data: {
+              orderId: order._id.toString(),
+              refundId: refund._id.toString(),
+            },
           },
           seller._id
         );
@@ -2001,7 +2156,10 @@ export const retunActionPerform = async (req, res) => {
           {
             title: "Return Pickup Initiated",
             body: `Your return pickup for order #${order.orderNumber} has been initiated`,
-            data: { orderId: order._id.toString(), returnId: returnRequest._id.toString() },
+            data: {
+              orderId: order._id.toString(),
+              returnId: returnRequest._id.toString(),
+            },
           },
           customer._id
         );
@@ -2015,7 +2173,10 @@ export const retunActionPerform = async (req, res) => {
           {
             title: "Return Pickup Initiated",
             body: `Return pickup for order #${order.orderNumber} has been initiated`,
-            data: { orderId: order._id.toString(), returnId: returnRequest._id.toString() },
+            data: {
+              orderId: order._id.toString(),
+              returnId: returnRequest._id.toString(),
+            },
           },
           seller._id
         );
@@ -2134,7 +2295,10 @@ export const createShipment = async (req, res) => {
           {
             title: "Shipment Created",
             body: `Your order #${order.orderNumber} is ready for shipment`,
-            data: { orderId: order._id.toString(), shipmentId: shipment._id.toString() },
+            data: {
+              orderId: order._id.toString(),
+              shipmentId: shipment._id.toString(),
+            },
           },
           customer._id
         );
@@ -2148,7 +2312,10 @@ export const createShipment = async (req, res) => {
           {
             title: "Shipment Created",
             body: `Order #${order.orderNumber} is ready for shipment`,
-            data: { orderId: order._id.toString(), shipmentId: shipment._id.toString() },
+            data: {
+              orderId: order._id.toString(),
+              shipmentId: shipment._id.toString(),
+            },
           },
           seller._id
         );
@@ -2223,7 +2390,10 @@ export const trackShipments = async () => {
                 {
                   title: "Order Out for Delivery",
                   body: `Your order #${order.orderNumber} is out for delivery`,
-                  data: { orderId: order._id.toString(), shipmentId: shipment._id.toString() },
+                  data: {
+                    orderId: order._id.toString(),
+                    shipmentId: shipment._id.toString(),
+                  },
                 },
                 customer._id
               );
@@ -2236,7 +2406,10 @@ export const trackShipments = async () => {
                 {
                   title: "Order Out for Delivery",
                   body: `Order #${order.orderNumber} is out for delivery`,
-                  data: { orderId: order._id.toString(), shipmentId: shipment._id.toString() },
+                  data: {
+                    orderId: order._id.toString(),
+                    shipmentId: shipment._id.toString(),
+                  },
                 },
                 seller._id
               );
@@ -2252,7 +2425,10 @@ export const trackShipments = async () => {
                 {
                   title: "Order Delivered",
                   body: `Your order #${order.orderNumber} has been delivered successfully`,
-                  data: { orderId: order._id.toString(), shipmentId: shipment._id.toString() },
+                  data: {
+                    orderId: order._id.toString(),
+                    shipmentId: shipment._id.toString(),
+                  },
                 },
                 customer._id
               );
@@ -2265,7 +2441,10 @@ export const trackShipments = async () => {
                 {
                   title: "Order Delivered",
                   body: `Order #${order.orderNumber} has been delivered successfully`,
-                  data: { orderId: order._id.toString(), shipmentId: shipment._id.toString() },
+                  data: {
+                    orderId: order._id.toString(),
+                    shipmentId: shipment._id.toString(),
+                  },
                 },
                 seller._id
               );

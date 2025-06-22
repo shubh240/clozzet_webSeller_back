@@ -167,7 +167,6 @@ export const createPorterReversePickup = async (order, returnRequest,customerAdd
       }
     );
 
-
     const data = response.data;
 
     return {
@@ -175,6 +174,7 @@ export const createPorterReversePickup = async (order, returnRequest,customerAdd
       trackingId: data.order_id,
       pickupAddress: payload.pickup_details.address,
       pickupDate: new Date().toISOString(),
+  data: JSON.stringify(data),
     };
   } catch (error) {
     const porterErrorMessage =
