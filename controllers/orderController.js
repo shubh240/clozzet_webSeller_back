@@ -182,7 +182,7 @@ export const createOrder = async (req, res) => {
         {
           title: "New Order Received",
           body: `You received a new order #${newOrder.orderNumber}!`,
-          data: { orderId: newOrder._id.toString() },
+          data: { orderId: newOrder._id.toString() , isFullScreen:"true" },
         },
         seller._id
       );
@@ -308,7 +308,7 @@ export const updateOrderStatusBySeller = async (req, res) => {
         {
           title: `Order Status Updated`,
           body: `Order #${order.orderNumber} status is now ${status}`,
-          data: { orderId: order._id.toString(), status },
+          data: { orderId: order._id.toString(), status , isFullScreen:"false" },
         },
         seller._id
       );
@@ -362,11 +362,11 @@ export const updateOrderStatusBySeller = async (req, res) => {
       //   );
       // }
 
-      shipmentResponse = await createPorterShipment(
-        order,
-        store,
-        customerAddress
-      );
+      // shipmentResponse = await createPorterShipment(
+      //   order,
+      //   store,
+      //   customerAddress
+      // );
 
       const shipment = await Shipment.create({
         orderId: order._id,
@@ -422,6 +422,7 @@ export const updateOrderStatusBySeller = async (req, res) => {
             data: {
               orderId: order._id.toString(),
               shipmentId: shipment._id.toString(),
+              isFullScreen:"false"
             },
           },
           seller._id
@@ -562,7 +563,7 @@ export const verifyPayment = async (req, res) => {
           {
             title: "Payment Received",
             body: `You received payment for order #${order.orderNumber}`,
-            data: { orderId: order._id.toString() },
+            data: { orderId: order._id.toString() , isFullScreen:"false" },
           },
           seller._id
         );
@@ -717,6 +718,7 @@ export const returnOrder = async (req, res) => {
           data: {
             orderId: orderId.toString(),
             returnId: returnRequest._id.toString(),
+            isFullScreen:"false"
           },
         },
         seller._id
@@ -922,6 +924,7 @@ export const porterWebhook = async (req, res) => {
                 orderId: order._id.toString(),
                 shipmentId: shipment._id.toString(),
                 status: "Partner Assigned",
+                isFullScreen:"false"
               },
             },
             seller._id
@@ -989,6 +992,7 @@ export const porterWebhook = async (req, res) => {
                 orderId: order._id.toString(),
                 shipmentId: shipment._id.toString(),
                 status: "Out For Delivery",
+                isFullScreen:"false"
               },
             },
             seller._id
@@ -1050,6 +1054,7 @@ export const porterWebhook = async (req, res) => {
                 orderId: order._id.toString(),
                 shipmentId: shipment._id.toString(),
                 status: "Delivered",
+                isFullScreen:"false"
               },
             },
             seller._id
@@ -1116,6 +1121,7 @@ export const porterWebhook = async (req, res) => {
                 orderId: order._id.toString(),
                 shipmentId: shipment._id.toString(),
                 status: "Reopened",
+                isFullScreen:"false"
               },
             },
             seller._id
@@ -1159,6 +1165,7 @@ export const porterWebhook = async (req, res) => {
                 orderId: order._id.toString(),
                 shipmentId: shipment._id.toString(),
                 status: "Partner Cancelled",
+                isFullScreen:"false"
               },
             },
             seller._id
@@ -1509,6 +1516,7 @@ export const porterWebhookOld = async (req, res) => {
               orderId: order._id.toString(),
               shipmentId: shipment._id.toString(),
               status: "Partner Assigned",
+              isFullScreen:"false"
             },
           },
           seller._id
@@ -1564,6 +1572,7 @@ export const porterWebhookOld = async (req, res) => {
               orderId: order._id.toString(),
               shipmentId: shipment._id.toString(),
               status: "Out For Delivery",
+              isFullScreen:"false"
             },
           },
           seller._id
@@ -1611,6 +1620,7 @@ export const porterWebhookOld = async (req, res) => {
               orderId: order._id.toString(),
               shipmentId: shipment._id.toString(),
               status: "Delivered",
+              isFullScreen:"false"
             },
           },
           seller._id
@@ -1661,6 +1671,7 @@ export const porterWebhookOld = async (req, res) => {
               orderId: order._id.toString(),
               shipmentId: shipment._id.toString(),
               status: "Reopened",
+              isFullScreen:"false"
             },
           },
           seller._id
@@ -1692,6 +1703,7 @@ export const porterWebhookOld = async (req, res) => {
               orderId: order._id.toString(),
               shipmentId: shipment._id.toString(),
               status: "Partner Cancelled",
+              isFullScreen:"false"
             },
           },
           seller._id
@@ -1874,6 +1886,7 @@ export const processRefund = async (req, res) => {
             data: {
               orderId: order._id.toString(),
               refundId: refund._id.toString(),
+              isFullScreen:"false"
             },
           },
           seller._id
@@ -1921,6 +1934,7 @@ export const processRefund = async (req, res) => {
             data: {
               orderId: order._id.toString(),
               refundId: refund._id.toString(),
+              isFullScreen:"false"
             },
           },
           seller._id
@@ -2616,6 +2630,7 @@ export const retunActionPerform = async (req, res) => {
             data: {
               orderId: order._id.toString(),
               returnId: returnRequest._id.toString(),
+              isFullScreen:"false"
             },
           },
           seller._id
@@ -2755,6 +2770,7 @@ export const createShipment = async (req, res) => {
             data: {
               orderId: order._id.toString(),
               shipmentId: shipment._id.toString(),
+              isFullScreen:"false"
             },
           },
           seller._id
@@ -2849,6 +2865,7 @@ export const trackShipments = async () => {
                   data: {
                     orderId: order._id.toString(),
                     shipmentId: shipment._id.toString(),
+                    isFullScreen:"false"
                   },
                 },
                 seller._id
@@ -2884,6 +2901,7 @@ export const trackShipments = async () => {
                   data: {
                     orderId: order._id.toString(),
                     shipmentId: shipment._id.toString(),
+                    isFullScreen:"false"
                   },
                 },
                 seller._id
@@ -3240,6 +3258,7 @@ const sendNotifications = async ({
     orderId: orderIdStr,
     ...(isShipment ? { shipmentId: shipmentIdStr } : { returnId: returnIdStr }),
     status: messages[status]?.customer?.title || "Status Updated",
+    isFullScreen:"false"
   };
 
   // Send to seller
