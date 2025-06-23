@@ -55,7 +55,7 @@ const sendPushAndSaveNotification = async (token, payload, userType, userId) => 
     notification: { title, body, ...(image && { image }) },
     data,
   };
-
+  console.log('message',message)
   const notificationData = {
     title,
     body,

@@ -4,9 +4,9 @@ export const createPorterShipment = async (order, store, customerAddress) => {
   if (!process.env.PORTER_API_KEY || !process.env.PORTER_BASE_URL) {
     throw new Error("Missing Porter API configuration");
   }
-  console.log('order : -------->' , order);
-  console.log('store : -------->' , store);
-  console.log('customerAddress : -------->' , customerAddress);
+  // console.log('order : -------->' , order);
+  // console.log('store : -------->' , store);
+  // console.log('customerAddress : -------->' , customerAddress);
   
   try {
     const payload = {
@@ -75,7 +75,7 @@ export const createPorterShipment = async (order, store, customerAddress) => {
     );
 
     const resData = response.data;
-    console.log('resData : ',resData);
+    // console.log('resData : ',resData);
     
     return {
       tracking_id: resData.order_id || "",
