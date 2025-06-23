@@ -362,11 +362,11 @@ export const updateOrderStatusBySeller = async (req, res) => {
       //   );
       // }
 
-      // shipmentResponse = await createPorterShipment(
-      //   order,
-      //   store,
-      //   customerAddress
-      // );
+      shipmentResponse = await createPorterShipment(
+        order,
+        store,
+        customerAddress
+      );
 
       const shipment = await Shipment.create({
         orderId: order._id,
