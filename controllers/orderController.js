@@ -756,6 +756,259 @@ export const returnOrder = async (req, res) => {
       is_deleted: false,
     }).sort({ createdAt: -1 });
 
+const shipment = await Shipment.findOne({ orderId: order._id });
+
+if (!shipment) {
+  return sendResponse(res, 404, false, "Original shipment not found.");
+}
+
+    if (!customerAddress) {
+      return sendResponse(res, 404, false, "Customer address not found.");
+    }
+
+    await returnRequest.populate("customerId");
+
+    const paymentTypeId = order.paymentTypeId; // 1 = COD, 2 = Online
+    let pickupInfo;
+    let shipmentProviderName;
+
+    // if (paymentTypeId === 1) {
+    //   // COD → Use Shiprocket
+    //   pickupInfo = await createShiprocketReversePickup(order, returnRequest, customerAddress,parsedOrderItemIds);
+    //   shipmentProviderName = "Shiprocket";
+    // } else {
+    // Online → Use Porter
+    pickupInfo = await createPorterReversePickup(
+      order,
+      returnRequest,
+      shipment
+    );
+    shipmentProviderName = "Porter";
+    // }
+    const shipmentProvider = await ShipmentProvider.findOne({
+      name: shipmentProviderName,
+    });
+
+    if (!pickupInfo.success) {
+      return sendResponse(
+        res,
+        500,
+        false,
+        "Reverse shipment creation failed.",
+        pickupInfo.error
+      );
+    }
+
+    returnRequest.status = "Pickup Initiated";
+    returnRequest.shipmentProviderId = shipmentProvider._id;
+    returnRequest.trackingId = pickupInfo.trackingId;
+    returnRequest.pickupAddress =
+      pickupInfo.pickupAddress.street_address1 || "";
+    returnRequest.pickupAddressUrl =
+      pickupInfo.pickupAddress?.address_url || "";
+    returnRequest.pickupDate = pickupInfo.pickupDate;
+    returnRequest.pickupPincode = pickupInfo.pickupAddress?.pincode;
+    returnRequest.pickupCity = pickupInfo.pickupAddress?.city;
+    returnRequest.pickupState = pickupInfo.pickupAddress?.state;
+    returnRequest.pickupLat = pickupInfo.pickupAddress?.lat;
+    returnRequest.pickupLng = pickupInfo.pickupAddress?.lng;
+    returnRequest.pickupAddressType =
+      pickupInfo.pickupAddress?.apartment_address;
+
+    returnRequest.dropAddressLine1 = order.storeId?.storeAddress;
+    returnRequest.dropAddressLine2 = order.storeId?.city;
+    returnRequest.dropCity = order.storeId?.city;
+    returnRequest.dropState = order.storeId?.state;
+    returnRequest.dropPincode = order.storeId?.pincode;
+    returnRequest.dropLat = order.storeId?.position?.lat;
+    returnRequest.dropLng = order.storeId?.position?.lng;
+    returnRequest.shipmentResponse = pickupInfo.data || "";
+
+    await returnRequest.save();
+
+    return sendResponse(
+      res,
+      201,
+      true,
+      "Return request created successfully.",
+      {
+        returnRequest,
+        returnProducts,
+      }
+    );
+  } catch (err) {
+    console.error("Create Return Error:", err);
+    return sendResponse(res, 500, false, "Returned failed");
+  }
+};
+
+export const returnOrderOld = async (req, res) => {
+  try {
+    const customerId = req.id;
+    const { orderId, reason, description, orderItemIds } = req.body;
+
+    let parsedOrderItemIds;
+    try {
+      parsedOrderItemIds =
+        typeof orderItemIds === "string"
+          ? JSON.parse(orderItemIds)
+          : orderItemIds;
+    } catch (err) {
+      return sendResponse(
+        res,
+        400,
+        false,
+        "orderItemIds must be a valid JSON array."
+      );
+    }
+
+    if (!Array.isArray(parsedOrderItemIds) || parsedOrderItemIds.length === 0) {
+      return sendResponse(
+        res,
+        400,
+        false,
+        "orderItemIds must be a non-empty array."
+      );
+    }
+
+    if (
+      !orderId ||
+      !reason ||
+      !Array.isArray(parsedOrderItemIds) ||
+      parsedOrderItemIds.length === 0
+    ) {
+      return sendResponse(res, 400, false, "Missing required fields.");
+    }
+
+    const order = await Order.findById(orderId)
+      .populate("storeId")
+      .populate("sellerId");
+
+    if (!order) return sendResponse(res, 400, false, "Order not found.");
+    if (
+      !order.storeId ||
+      order.storeId.is_deleted ||
+      order.storeId.isActive === false
+    ) {
+      return sendResponse(
+        res,
+        403,
+        false,
+        "Return request not allowed. Store is inactive or deleted."
+      );
+    }
+    if (order.orderStatus !== "Delivered")
+      return sendResponse(
+        res,
+        400,
+        false,
+        "You can only request a return after the product has been delivered."
+      );
+    if (order.paymentStatus !== "Success")
+      return sendResponse(
+        res,
+        400,
+        false,
+        "We haven't received your payment yet. Please complete the payment to request a return."
+      );
+
+    const existingReturns = await ReturnProduct.find({
+      orderItemId: { $in: parsedOrderItemIds },
+    }).populate("returnId");
+
+    const alreadyRequested = existingReturns.filter(
+      (rp) =>
+        rp.returnId &&
+        rp.returnId.customerId.toString() === customerId.toString()
+    );
+
+    if (alreadyRequested.length > 0) {
+      return sendResponse(
+        res,
+        409,
+        false,
+        "Return request already exists for one or more selected items."
+      );
+    }
+
+    let primaryImageUrl = "";
+    if (!req.files || !req.files["image"]) {
+      return sendResponse(res, 400, false, "image is required");
+    }
+
+    // Upload primary image
+    const imagePath = req.files["image"][0].path;
+    const imageResult = await cloudinary.uploader.upload(imagePath, {
+      folder: "uploads/returnOrder/images",
+      resource_type: "image",
+    });
+    primaryImageUrl = imageResult.secure_url;
+    fs.unlinkSync(imagePath);
+
+    const returnRequest = await Return.create({
+      orderId,
+      customerId,
+      storeId: order.storeId,
+      sellerId: order.sellerId,
+      reason,
+      description,
+      image: primaryImageUrl,
+      status: "Return Initiated",
+      refundStatus: "Pending",
+    });
+
+    order.orderStatus = "Return Initiated";
+    await order.save();
+
+    // Send return request notification to seller
+    const seller = await SellerUserAuth.findById(order.sellerId);
+    if (seller && seller.fcmToken) {
+      await sendSellerNotification(
+        seller.fcmToken,
+        {
+          title: "Return Request Received",
+          body: `New return request for order #${orderId}`,
+          data: {
+            orderId: orderId.toString(),
+            returnId: returnRequest._id.toString(),
+            isFullScreen:"false"
+          },
+        },
+        seller._id
+      );
+    }
+
+    const customer = await Customer.findById(req.id);
+    if (customer && customer.fcmToken) {
+      await sendCustomerNotification(
+        customer.fcmToken,
+        {
+          title: "Return Request Submitted",
+          body: `Your return request for order #${orderId} has been submitted`,
+          data: {
+            orderId: orderId.toString(),
+            returnId: returnRequest._id.toString(),
+          },
+        },
+        customer._id
+      );
+    }
+
+    const returnProducts = parsedOrderItemIds.map((itemId) => ({
+      returnId: returnRequest._id,
+      orderItemId: itemId,
+    }));
+
+    await ReturnProduct.insertMany(returnProducts);
+
+    /**
+     * Calling Reverse-Shipment Api's
+     */
+    const customerAddress = await CustomerAddress.findOne({
+      customerId,
+      is_deleted: false,
+    }).sort({ createdAt: -1 });
+
     if (!customerAddress) {
       return sendResponse(res, 404, false, "Customer address not found.");
     }
