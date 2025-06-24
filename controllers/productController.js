@@ -1,5 +1,7 @@
 import { sendResponse } from "../common/index.js";
 import { Product } from "../models/product.model.js";
+import { Category } from "../models/category.model.js";
+import { Subcategory } from "../models/subCategories.model.js";
 import { ProductImage } from "../models/productImage.model.js";
 import cloudinary from "../config/cloudinary.js";
 import fs from "fs";
@@ -1085,3 +1087,227 @@ export const homePageProductList = async (req, res) => {
     return sendResponse(res, 500, false, "Something went wrong");
   }
 };
+
+export const globalSearch = async (req, res) => {
+  try {
+    const { search, page, limit, city } = req.body;
+
+    if (!search || search.trim() === "") {
+      return sendResponse(res, 400, false, "search is required");
+    }
+
+    const regex = new RegExp(search.trim(), "i");
+    const skip = page && limit ? (parseInt(page) - 1) * parseInt(limit) : 0;
+    const pagination = page && limit;
+
+    const productPipeline = [
+      { $match: { isDeleted: false, name: { $regex: regex } } },
+      ...(city
+        ? [
+            {
+              $lookup: {
+                from: "customeraddresses",
+                let: { productCity: city },
+                pipeline: [
+                  {
+                    $match: {
+                      $expr: {
+                        $and: [
+                          { $eq: ["$city", "$$productCity"] },
+                          { $eq: ["$is_deleted", false] },
+                        ],
+                      },
+                    },
+                  },
+                ],
+                as: "cityMatch",
+              },
+            },
+            { $match: { cityMatch: { $ne: [] } } },
+          ]
+        : []),
+
+      { $match: { isDeleted: false } },
+
+      // JOIN category
+      {
+        $lookup: {
+          from: "categories",
+          localField: "category",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+      { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
+
+      // JOIN subcategory
+      {
+        $lookup: {
+          from: "subcategories",
+          localField: "subcategory",
+          foreignField: "_id",
+          as: "subcategory",
+        },
+      },
+      { $unwind: { path: "$subcategory", preserveNullAndEmptyArrays: true } },
+
+      // JOIN size chart
+      {
+        $lookup: {
+          from: "sizecharts",
+          localField: "sizeChart",
+          foreignField: "_id",
+          as: "sizeChart",
+        },
+      },
+      { $unwind: { path: "$sizeChart", preserveNullAndEmptyArrays: true } },
+
+      // JOIN images
+      {
+        $lookup: {
+          from: "productimages",
+          let: { productId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$product", "$$productId"] },
+                    { $eq: ["$isDeleted", false] },
+                  ],
+                },
+              },
+            },
+            { $project: { imageUrl: 1 } },
+          ],
+          as: "images",
+        },
+      },
+
+      // JOIN colors
+      {
+        $lookup: {
+          from: "colors",
+          localField: "colors",
+          foreignField: "_id",
+          as: "colors",
+        },
+      },
+
+      // JOIN sizes
+      {
+        $lookup: {
+          from: "productsizes",
+          localField: "_id",
+          foreignField: "productId",
+          as: "productSizes",
+        },
+      },
+      {
+        $addFields: {
+          productSizes: {
+            $filter: {
+              input: "$productSizes",
+              as: "ps",
+              cond: { $eq: ["$$ps.isDeleted", false] },
+            },
+          },
+        },
+      },
+
+      // JOIN store info
+      {
+        $lookup: {
+          from: "storeinfos",
+          let: { sellerId: "$seller" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$sellerAuthId", "$$sellerId"] },
+                    { $eq: ["$is_deleted", false] },
+                    { $eq: ["$isActive", true] },
+                  ],
+                },
+              },
+            },
+            {
+              $project: {
+                _id: 1,
+                storeName: 1,
+                storeLogo: 1,
+                coverPhoto: 1,
+                city: 1,
+              },
+            },
+          ],
+          as: "storeInfo",
+        },
+      },
+      {
+        $addFields: {
+          storeId: { $arrayElemAt: ["$storeInfo._id", 0] },
+          storeName: { $arrayElemAt: ["$storeInfo.storeName", 0] },
+          storeLogo: { $arrayElemAt: ["$storeInfo.storeLogo", 0] },
+          coverPhoto: { $arrayElemAt: ["$storeInfo.coverPhoto", 0] },
+          storeCity: { $arrayElemAt: ["$storeInfo.city", 0] },
+        },
+      },
+      {
+        $project: {
+          storeInfo: 0,
+        },
+      },
+
+      // Pagination
+      ...(pagination ? [{ $skip: skip }, { $limit: parseInt(limit) }] : []),
+    ];
+
+    const [products, categories, subcategories, stores] = await Promise.all([
+      Product.aggregate(productPipeline).then((res) =>
+        res.map((p) => ({ ...p, productType: "Product" }))
+      ),
+
+      Category.find({ isDeleted: false, name: { $regex: regex } })
+        .lean()
+        .then((res) =>
+          pagination ? res.slice(skip, skip + parseInt(limit)) : res
+        )
+        .then((res) => res.map((c) => ({ ...c, productType: "Category" }))),
+
+      Subcategory.find({ isDeleted: false, name: { $regex: regex } })
+        .lean()
+        .then((res) =>
+          pagination ? res.slice(skip, skip + parseInt(limit)) : res
+        )
+        .then((res) => res.map((s) => ({ ...s, productType: "Subcategory" }))),
+
+      StoreInfo.find({
+        is_deleted: false,
+        isActive: true,
+        storeName: { $regex: regex },
+      })
+        .select(
+          "_id storeName storeLogo coverPhoto city address phone email isOpen"
+        )
+        .lean()
+        .then((res) =>
+          pagination ? res.slice(skip, skip + parseInt(limit)) : res
+        )
+        .then((res) => res.map((s) => ({ ...s, productType: "Store" }))),
+    ]);
+
+    const results = [...products, ...categories, ...subcategories, ...stores];
+
+    return sendResponse(res, 200, true, "Search results", {
+      total: results.length,
+      ...(pagination && { page: parseInt(page), limit: parseInt(limit) }),
+      results,
+    });
+  } catch (error) {
+    console.error("Global Search Error:", error);
+    return sendResponse(res, 500, false, "Something went wrong");
+  }
+};
+

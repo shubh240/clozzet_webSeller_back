@@ -8,7 +8,8 @@ import {
   deleteProduct,
   statusProduct,
   universalProductList,
-  homePageProductList
+  homePageProductList,
+  globalSearch
 } from '../controllers/productController.js';
 import isUserAuthenticated from "../middleware/isUserAuthenticated.js";
 
@@ -44,6 +45,9 @@ router.patch('/status-product/:productId', isUserAuthenticated, statusProduct);
 
 router.post('/product-filters', isUserAuthenticated, universalProductList); 
 
-router.get('/product-list/homePage', isUserAuthenticated, homePageProductList); 
+router.get('/product-list/homePage', isUserAuthenticated, homePageProductList);
+
+router.post('/search', isUserAuthenticated, globalSearch);
+
 
 export default router;
