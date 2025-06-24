@@ -5,6 +5,7 @@ import {
   verifyOtp,
   logoutSeller,
   updateSellerFcmToken,
+  getSellerDashboardCounts
 } from "../controllers/userController.js";
 import isUserAuthenticated from "../middleware/isUserAuthenticated.js";
 
@@ -17,5 +18,8 @@ router.post("/verifyOtp", verifyOtp);
 router.get("/logout",isUserAuthenticated, logoutSeller);
 
 router.put("/update-fcm-token", isUserAuthenticated, updateSellerFcmToken)
+
+
+router.get("/seller-dashboard-count", isUserAuthenticated, getSellerDashboardCounts);
 
 export default router;

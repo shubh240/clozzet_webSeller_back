@@ -7,6 +7,7 @@ import { sendResponse } from "../common/index.js";
 import AWS from "aws-sdk";
 import { StoreInfo } from "../models/sellerStoreInfo.model.js";
 import mongoose from "mongoose";
+import { Order } from "../models/order.model.js";
 
 const OTP_EXPIRY_MINUTES = 5;
 
@@ -298,5 +299,73 @@ export const updateSellerFcmToken = async (req, res) => {
   } catch (error) {
     console.error("Update FCM token error:", error);
     return sendResponse(res, 500, false, "Internal server error");
+  }
+};
+
+/**
+ * seller dashboard order and revenue count of week and month
+ */
+export const getSellerDashboardCounts = async (req, res) => {
+  try {
+    const sellerId = req.id;
+
+    if (!sellerId) {
+      return sendResponse(res, 400, false, "Seller ID is required");
+    }
+
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const pipeline = [
+      {
+        $match: {
+          sellerId: new mongoose.Types.ObjectId(sellerId),
+          paymentStatus: "Success"
+        },
+      },
+      {
+        $facet: {
+          ordersWeek: [
+            { $match: { createdAt: { $gte: startOfWeek } } },
+            {
+              $group: {
+                _id: null,
+                count: { $sum: 1 },
+                revenue: { $sum: "$totalAmount" },
+              },
+            },
+          ],
+          ordersMonth: [
+            { $match: { createdAt: { $gte: startOfMonth } } },
+            {
+              $group: {
+                _id: null,
+                count: { $sum: 1 },
+                revenue: { $sum: "$totalAmount" },
+              },
+            },
+          ],
+        },
+      },
+    ];
+
+    const result = await Order.aggregate(pipeline);
+
+    const ordersWeek = result[0]?.ordersWeek[0] || { count: 0, revenue: 0 };
+    const ordersMonth = result[0]?.ordersMonth[0] || { count: 0, revenue: 0 };
+
+    return sendResponse(res, 200, true, "Seller dashboard stats", {
+      totalOrdersWeek: ordersWeek.count,
+      totalRevenueWeek: ordersWeek.revenue,
+      totalOrdersMonth: ordersMonth.count,
+      totalRevenueMonth: ordersMonth.revenue,
+    });
+  } catch (error) {
+    console.error("Dashboard Error:", error);
+    return sendResponse(res, 500, false, error.message);
   }
 };
