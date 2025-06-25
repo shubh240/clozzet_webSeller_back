@@ -320,6 +320,9 @@ export const getSellerDashboardCounts = async (req, res) => {
 
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+
     const pipeline = [
       {
         $match: {
@@ -329,6 +332,16 @@ export const getSellerDashboardCounts = async (req, res) => {
       },
       {
         $facet: {
+          ordersToday: [
+            { $match: { createdAt: { $gte: startOfToday } } },
+            {
+              $group: {
+                _id: null,
+                count: { $sum: 1 },
+                revenue: { $sum: "$totalAmount" },
+              },
+            },
+          ],
           ordersWeek: [
             { $match: { createdAt: { $gte: startOfWeek } } },
             {
@@ -357,8 +370,11 @@ export const getSellerDashboardCounts = async (req, res) => {
 
     const ordersWeek = result[0]?.ordersWeek[0] || { count: 0, revenue: 0 };
     const ordersMonth = result[0]?.ordersMonth[0] || { count: 0, revenue: 0 };
+    const ordersToday = result[0]?.ordersToday[0] || { count: 0, revenue: 0 };
 
     return sendResponse(res, 200, true, "Seller dashboard stats", {
+      totalOrdersToday: ordersToday.count,
+      totalRevenueToday: ordersToday.revenue,
       totalOrdersWeek: ordersWeek.count,
       totalRevenueWeek: ordersWeek.revenue,
       totalOrdersMonth: ordersMonth.count,
