@@ -552,7 +552,7 @@ export const verifyPayment = async (req, res) => {
           {
             title: "New Order Received",
             body: `You received a new order #${order.orderNumber}!`,
-            data: { orderId: order._id.toString() , isFullScreen:"false" },
+            data: { orderId: order._id.toString() , isFullScreen:"true" },
           },
           seller._id
         );
