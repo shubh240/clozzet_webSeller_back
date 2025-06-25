@@ -161,32 +161,20 @@ export const createOrder = async (req, res) => {
     }));
     await OrderItem.insertMany(itemsToInsert);
 
-    // Send notifications for new order
-    const customer = await Customer.findById(cart.customerId);
-    if (customer && customer.fcmToken) {
-      await sendCustomerNotification(
-        customer.fcmToken,
-        {
-          title: "New Order Placed",
-          body: `Your order #${newOrder.orderNumber} has been placed successfully!`,
-          data: { orderId: newOrder._id.toString() },
-        },
-        customer._id
-      );
-    }
-
     // Send notification to seller
-    const seller = await SellerUserAuth.findById(cart.sellerId);
-    if (seller && seller.fcmToken) {
-      await sendSellerNotification(
-        seller.fcmToken,
-        {
-          title: "New Order Received",
-          body: `You received a new order #${newOrder.orderNumber}!`,
-          data: { orderId: newOrder._id.toString() , isFullScreen:"true" },
-        },
-        seller._id
-      );
+    if (paymentTypeId === 1) {
+      const seller = await SellerUserAuth.findById(cart.sellerId);
+      if (seller && seller.fcmToken) {
+        await sendSellerNotification(
+          seller.fcmToken,
+          {
+            title: "New Order Received",
+            body: `You received a new order #${newOrder.orderNumber}!`,
+            data: { orderId: newOrder._id.toString() , isFullScreen:"true" },
+          },
+          seller._id
+        );
+      }
     }
 
     /**
@@ -562,9 +550,9 @@ export const verifyPayment = async (req, res) => {
         await sendSellerNotification(
           seller.fcmToken,
           {
-            title: "Payment Received",
-            body: `You received payment for order #${order.orderNumber}`,
-            data: { orderId: order._id.toString() , isFullScreen:"false" },
+            title: "New Order Received",
+            body: `You received a new order #${order.orderNumber}!`,
+            data: { orderId: order._id.toString() , isFullScreen:"true" },
           },
           seller._id
         );
