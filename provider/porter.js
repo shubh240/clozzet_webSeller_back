@@ -198,68 +198,10 @@ export const createPorterReversePickup = async (
   }
 };
 
-export const createPorterReversePickupOld = async (
-  order,
-  returnRequest,
-  customerAddress
-) => {
-  if (!process.env.PORTER_API_KEY || !process.env.PORTER_BASE_URL) {
-    throw new Error("Missing Porter API configuration");
-  }
-
+export const getPorterLiveTrackingDetails = async (trackingId) => {
   try {
-    const payload = {
-      request_id: `reverse_${order._id}`,
-      delivery_instructions: {
-        instructions_list: [
-          {
-            type: "text",
-            description: "Return pickup - Handle carefully",
-          },
-        ],
-      },
-      pickup_details: {
-        address: {
-          apartment_address: customerAddress?.type || "N/A",
-          street_address1: customerAddress?.address_line_1,
-          street_address2: customerAddress?.address_line_2 || "",
-          landmark: customerAddress?.landmark || "",
-          city: customerAddress?.city,
-          state: customerAddress?.state,
-          pincode: customerAddress?.pincode,
-          country: "India",
-          lat: customerAddress?.location?.coordinates[0],
-          lng: customerAddress?.location?.coordinates[1],
-          contact_details: {
-            name: returnRequest?.customerId?.fullName,
-            phone_number: `${returnRequest?.customerId?.countryCode}${returnRequest?.customerId?.mobileNo}`,
-          },
-        },
-      },
-      drop_details: {
-        address: {
-          apartment_address: order.storeId?.storeName || "Warehouse",
-          street_address1: order.storeId?.storeAddress,
-          street_address2: order.storeId?.city,
-          landmark: "",
-          city: order.storeId?.city,
-          state: order.storeId?.state,
-          pincode: order.storeId?.pincode,
-          country: "India",
-          lat: order.storeId?.position?.lat,
-          lng: order.storeId?.position?.lng,
-          contact_details: {
-            name: `${order.sellerId?.userInfo?.firstName} ${order.sellerId?.userInfo?.lastName}`,
-            phone_number: `+91${order.sellerId?.userInfo?.mobileNo}`,
-          },
-        },
-      },
-    };
-    console.log("payload", payload);
-
-    const response = await axios.post(
-      `${process.env.PORTER_BASE_URL}/v1/orders/create`,
-      payload,
+    const response = await axios.get(
+      `${process.env.PORTER_BASE_URL}/v1/orders/${trackingId}`,
       {
         headers: {
           "x-api-key": process.env.PORTER_API_KEY,
@@ -267,26 +209,15 @@ export const createPorterReversePickupOld = async (
         },
       }
     );
-
-    const data = response.data;
-
-    return {
-      success: true,
-      trackingId: data.order_id,
-      pickupAddress: payload.pickup_details.address,
-      pickupDate: new Date().toISOString(),
-      data: JSON.stringify(data),
-    };
+    console.log(response.data)
+    return response.data;
   } catch (error) {
-    const porterErrorMessage =
-      error?.response?.data?.message ||
-      error?.response?.data?.error ||
-      error?.message ||
-      "Unknown Porter reverse pickup error";
-
-    return {
-      success: false,
-      error: porterErrorMessage,
-    };
+    console.error("Porter Live Tracking API Error:", error.response?.data || error.message);
+    throw new Error(
+      error.response?.data?.message ||
+      error.response?.data?.error ||
+      error.message ||
+      "Failed to fetch Porter tracking details"
+    );
   }
 };

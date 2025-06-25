@@ -9,7 +9,6 @@ import {
   getOrderDetails,
   returnOrder,
   razorpayWebhook,
-  trackShipments,
   updateOrderStatusBySeller,
   getSellerReturnRequests,
   getCustomerReturnRequests,
@@ -20,7 +19,8 @@ import {
   getCustomerExchanges,
   getSellerExchanges,
   handleExchangeWebhook,
-  porterWebhook
+  porterWebhook,
+  trackShipment
   // generateInvoice
 } from "../controllers/orderController.js";
 import isUserAuthenticated from "../middleware/isUserAuthenticated.js";
@@ -84,6 +84,7 @@ router.post('/api/razorpay/webhook', express.raw({ type: 'application/json' }), 
 
 // router.post("/generate-invoice", isUserAuthenticated, generateInvoice);
 
-router.get("/track-shipment", trackShipments);
+// router.get("/track-shipment", trackShipments);
+router.get("/shipment-track/:shipmentId", isUserAuthenticated, trackShipment);
 
 export default router;

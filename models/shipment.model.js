@@ -18,6 +18,7 @@ const shipmentSchema = new mongoose.Schema(
     },
     currentStatus: {
       type: String,
+      // enum: ["Accepted", "Trip Started", "Delivered", "Reopened", "Partner Cancelled"],
       trim: true,
     },
     pickupStoreName: {

@@ -18,6 +18,7 @@ import {
 import {
   createPorterShipment,
   createPorterReversePickup,
+  getPorterLiveTrackingDetails,
 } from "../provider/porter.js";
 import { rezerpayRefundPayment } from "../provider/razorPay.js";
 import { StoreInfo } from "../models/sellerStoreInfo.model.js";
@@ -1705,286 +1706,6 @@ export const porterWebhookNotification = async (req, res) => {
     return sendResponse(res, 500, false, "Internal server error");
   }
 };
-
-export const porterWebhookOld = async (req, res) => {
-  try {
-    const payload = req.body;
-
-    const { order_id, status, order_details } = payload;
-
-    console.log(payload);
-
-    if (!order_id || !status) {
-      return sendResponse(res, 400, false, "Missing tracking ID or status");
-    }
-
-    const shipment = await Shipment.findOne({ trackingId: order_id });
-    if (!shipment) {
-      return sendResponse(res, 404, false, "Shipment not found");
-    }
-
-    const order = await Order.findById(shipment.orderId);
-    if (!order) {
-      return sendResponse(res, 404, false, "Order not found");
-    }
-
-    const seller = await SellerUserAuth.findById(order.sellerId);
-    const customer = await Customer.findById(order.customerId);
-
-    if (status === "order_accepted") {
-      const driver = order_details?.driver_details || {};
-      const location = order_details?.partner_location || {};
-
-      shipment.partner_name = driver.driver_name;
-      shipment.partner_vehicle_number = driver.vehicle_number;
-      shipment.partner_mobile = driver.mobile;
-      shipment.partner_lat = location.lat?.toString() || "";
-      shipment.partner_lng = location.long?.toString() || "";
-      shipment.currentStatus = "Accepted";
-
-      await shipment.save();
-
-      await ShipmentHistory.create({
-        shipmentId: shipment._id,
-        currentStatus: "Accepted",
-        partner_lat: location.lat?.toString() || "",
-        partner_lng: location.long?.toString() || "",
-        location:
-          location.lat && location.long
-            ? `${location.lat},${location.long}`
-            : "",
-        description: `Partner assigned: ${driver.driver_name}, Vehicle: ${driver.vehicle_number}, Mobile: ${driver.mobile}`,
-      });
-
-      order.orderStatus = "Partner Assigned";
-      await order.save();
-
-      if (seller?.fcmToken) {
-        await sendSellerNotification(
-          seller.fcmToken,
-          {
-            title: "Pickup Partner Assigned",
-            body: `Order #${order.orderNumber} is ready for pickup by ${driver.driver_name}`,
-            data: {
-              orderId: order._id.toString(),
-              shipmentId: shipment._id.toString(),
-              status: "Partner Assigned",
-              isFullScreen:"false"
-            },
-          },
-          seller._id
-        );
-      }
-
-      if (customer?.fcmToken) {
-        await sendCustomerNotification(
-          customer.fcmToken,
-          {
-            title: "Pickup Partner Assigned",
-            body: `A delivery partner is assigned order #${order.orderNumber}`,
-            data: {
-              orderId: order._id.toString(),
-              shipmentId: shipment._id.toString(),
-              status: "Partner Assigned",
-            },
-          },
-          customer._id
-        );
-      }
-    } else if (status === "order_start_trip") {
-      const location = order_details?.partner_location || {};
-      const estimatedFare = order_details?.estimated_trip_fare;
-
-      shipment.currentStatus = "Trip Started";
-      await shipment.save();
-
-      await ShipmentHistory.create({
-        shipmentId: shipment._id,
-        currentStatus: "Trip Started",
-        partner_lat: location.lat?.toString() || "",
-        partner_lng: location.long?.toString() || "",
-        location:
-          location.lat && location.long
-            ? `${location.lat},${location.long}`
-            : "",
-        description: `Trip started${
-          estimatedFare ? ` | Estimated Fare: ₹${estimatedFare}` : ""
-        }`,
-      });
-
-      order.orderStatus = "Out For Delivery";
-      await order.save();
-
-      if (seller?.fcmToken) {
-        await sendSellerNotification(
-          seller.fcmToken,
-          {
-            title: "Pickup Partner En Route",
-            body: `Delivery partner is on the way for order #${order.orderNumber}`,
-            data: {
-              orderId: order._id.toString(),
-              shipmentId: shipment._id.toString(),
-              status: "Out For Delivery",
-              isFullScreen:"false"
-            },
-          },
-          seller._id
-        );
-      }
-
-      if (customer?.fcmToken) {
-        await sendCustomerNotification(
-          customer.fcmToken,
-          {
-            title: "Pickup Partner On The Way",
-            body: `Your delivery partner is on the way with your order #${order.orderNumber}`,
-            data: {
-              orderId: order._id.toString(),
-              shipmentId: shipment._id.toString(),
-              status: "Out For Delivery",
-            },
-          },
-          customer._id
-        );
-      }
-    } else if (status === "order_end_job") {
-      shipment.currentStatus = "Delivered";
-      shipment.deliveryFee = order_details?.actual_trip_fare;
-      await shipment.save();
-
-      await ShipmentHistory.create({
-        shipmentId: shipment._id,
-        currentStatus: "Delivered",
-        description: `Trip completed. Actual fare: ₹${
-          order_details?.actual_trip_fare || "N/A"
-        }`,
-      });
-
-      order.orderStatus = "Delivered";
-      await order.save();
-
-      if (seller?.fcmToken) {
-        await sendSellerNotification(
-          seller.fcmToken,
-          {
-            title: "Order Delivered",
-            body: `Order #${order.orderNumber} has been delivered successfully.`,
-            data: {
-              orderId: order._id.toString(),
-              shipmentId: shipment._id.toString(),
-              status: "Delivered",
-              isFullScreen:"false"
-            },
-          },
-          seller._id
-        );
-      }
-
-      const customer = await Customer.findById(order.customerId);
-      if (customer?.fcmToken) {
-        await sendCustomerNotification(
-          customer.fcmToken,
-          {
-            title: "Order Delivered",
-            body: `Your order #${order.orderNumber} has been delivered successfully.`,
-            data: {
-              orderId: order._id.toString(),
-              shipmentId: shipment._id.toString(),
-              status: "Delivered",
-            },
-          },
-          customer._id
-        );
-      }
-    } else if (status === "order_reopen") {
-      shipment.partner_name = null;
-      shipment.partner_vehicle_number = null;
-      shipment.partner_mobile = null;
-      shipment.partner_lat = null;
-      shipment.partner_lng = null;
-      shipment.deliveryFee = null;
-      await shipment.save();
-
-      await ShipmentHistory.create({
-        shipmentId: shipment._id,
-        currentStatus: "Reopened",
-        partner_lat: null,
-        partner_lng: null,
-        location: "",
-        description: "Driver cancelled. Attempting to assign new partner.",
-      });
-
-      if (seller?.fcmToken) {
-        await sendSellerNotification(
-          seller.fcmToken,
-          {
-            title: "Delivery Partner Reassignment",
-            body: `Delivery partner for order #${order.orderNumber} cancelled. Reassigning a new one.`,
-            data: {
-              orderId: order._id.toString(),
-              shipmentId: shipment._id.toString(),
-              status: "Reopened",
-              isFullScreen:"false"
-            },
-          },
-          seller._id
-        );
-      }
-    } else if (status === "order_cancel") {
-      shipment.currentStatus = "Partner Cancelled";
-      await shipment.save();
-
-      await ShipmentHistory.create({
-        shipmentId: shipment._id,
-        currentStatus: "Partner Cancelled",
-        partner_lat: null,
-        partner_lng: null,
-        location: "",
-        description: "Order has been cancelled by delivery partner.",
-      });
-
-      order.orderStatus = "Partner Cancelled";
-      await order.save();
-
-      if (seller?.fcmToken) {
-        await sendSellerNotification(
-          seller.fcmToken,
-          {
-            title: "Order Cancelled by delivery partner",
-            body: `Order #${order.orderNumber} has been cancelled by delivery partner.`,
-            data: {
-              orderId: order._id.toString(),
-              shipmentId: shipment._id.toString(),
-              status: "Partner Cancelled",
-              isFullScreen:"false"
-            },
-          },
-          seller._id
-        );
-      }
-
-      if (customer?.fcmToken) {
-        await sendCustomerNotification(
-          customer.fcmToken,
-          {
-            title: "Order Cancelled",
-            body: `Your order #${order.orderNumber} has been cancelled.`,
-            data: {
-              orderId: order._id.toString(),
-              status: "Partner Cancelled",
-            },
-          },
-          customer._id
-        );
-      }
-    }
-
-    return sendResponse(res, 200, true, "Porter Webhook Success");
-  } catch (err) {
-    console.error("Porter Webhook Error:", err);
-    return sendResponse(res, 500, false, "Internal server error");
-  }
-};
 /**
  * @param {*} req
  * @param {*} res Shiprocketwebhook
@@ -3038,148 +2759,48 @@ export const createShipment = async (req, res) => {
   }
 };
 
-export const trackShipments = async () => {
-  const activeShipments = await Shipment.find({
-    currentStatus: { $nin: ["DELIVERED", "CANCELLED"] },
-  }).populate("shipmentProviderId");
-  console.log("activeShipments", activeShipments);
+/**
+ *
+ * Track Shipment
+ *
+ */
+export const trackShipment = async (req, res) => {
+  try {
+    const { shipmentId } = req.params;
 
-  for (const shipment of activeShipments) {
-    try {
-      let trackingData;
-      console.log(typeof shipment.shipmentProviderId.indexNumber);
-      if (shipment.shipmentProviderId.indexNumber == 2) {
-        // Porter API
-        const response = await axios.get(
-          `${process.env.PORTER_BASE_URL}/v1/orders/track/${shipment.trackingId}`,
-          {
-            headers: {
-              Authorization: `Bearer ${process.env.PORTER_API_KEY}`,
-            },
-          }
-        );
-        trackingData = response.data;
-        console.log("Porter tracking data", trackingData);
-      } else {
-        // Shiprocket API
-        const response = await axios.get(
-          `https://apiv2.shiprocket.in/v1/external/courier/track/awb/${shipment.trackingId}`,
-          {
-            headers: {
-              Authorization: `Bearer ${process.env.SHIPROCKET_API_KEY}`,
-            },
-          }
-        );
-        trackingData = response.data;
-        console.log("Shiprocket tracking data", trackingData);
-      }
-
-      // Update shipment status
-      const currentStatus = trackingData.status || trackingData.current_status;
-      if (currentStatus !== shipment.currentStatus) {
-        await Shipment.findByIdAndUpdate(shipment._id, {
-          currentStatus,
-          lastUpdated: new Date(),
-          trackingData,
-        });
-
-        // Update order status based on shipment status
-        const order = await Order.findById(shipment.orderId);
-        if (order) {
-          if (currentStatus === "OUT_FOR_DELIVERY") {
-            await Order.findByIdAndUpdate(order._id, {
-              status: "out_for_delivery",
-            });
-
-            // Send out for delivery notification
-            const customer = await Customer.findById(order.customerId);
-            if (customer && customer.fcmToken) {
-              await sendCustomerNotification(
-                customer.fcmToken,
-                {
-                  title: "Order Out for Delivery",
-                  body: `Your order #${order.orderNumber} is out for delivery`,
-                  data: {
-                    orderId: order._id.toString(),
-                    shipmentId: shipment._id.toString(),
-                  },
-                },
-                customer._id
-              );
-            }
-
-            const seller = await SellerUserAuth.findById(order.sellerId);
-            if (seller && seller.fcmToken) {
-              await sendSellerNotification(
-                seller.fcmToken,
-                {
-                  title: "Order Out for Delivery",
-                  body: `Order #${order.orderNumber} is out for delivery`,
-                  data: {
-                    orderId: order._id.toString(),
-                    shipmentId: shipment._id.toString(),
-                    isFullScreen:"false"
-                  },
-                },
-                seller._id
-              );
-            }
-          } else if (currentStatus === "DELIVERED") {
-            await Order.findByIdAndUpdate(order._id, { status: "delivered" });
-
-            // Send delivered notification
-            const customer = await Customer.findById(order.customerId);
-            if (customer && customer.fcmToken) {
-              await sendCustomerNotification(
-                customer.fcmToken,
-                {
-                  title: "Order Delivered",
-                  body: `Your order #${order.orderNumber} has been delivered successfully`,
-                  data: {
-                    orderId: order._id.toString(),
-                    shipmentId: shipment._id.toString(),
-                  },
-                },
-                customer._id
-              );
-            }
-
-            const seller = await SellerUserAuth.findById(order.sellerId);
-            if (seller && seller.fcmToken) {
-              await sendSellerNotification(
-                seller.fcmToken,
-                {
-                  title: "Order Delivered",
-                  body: `Order #${order.orderNumber} has been delivered successfully`,
-                  data: {
-                    orderId: order._id.toString(),
-                    shipmentId: shipment._id.toString(),
-                    isFullScreen:"false"
-                  },
-                },
-                seller._id
-              );
-            }
-          }
-        }
-      }
-
-      await ShipmentHistory.create({
-        shipmentId: shipment._id,
-        currentStatus: currentStatus,
-        location: trackingData.location || "Unknown",
-        description: trackingData.description,
-      });
-
-      console.log(`Updated tracking for order: ${shipment.orderId}`);
-    } catch (err) {
-      console.error(
-        `Tracking failed for shipment ${shipment._id}:`,
-        err.message
-      );
+    if (!shipmentId) {
+      return sendResponse(res, 400, false, "Shipment ID is required");
     }
+
+    const shipment = await Shipment.findById(shipmentId);
+
+    if (!shipment) {
+      return sendResponse(res, 404, false, "Shipment not found");
+    }
+
+    if (["Accepted", "Trip Started"].includes(shipment.currentStatus)) {
+      try {
+        const porterResponse = await getPorterLiveTrackingDetails(shipment.trackingId);
+
+        const partnerLocation = porterResponse?.partner_info?.location;
+
+        if (partnerLocation?.lat && partnerLocation?.long) {
+          shipment.partner_lat = partnerLocation.lat.toString();
+          shipment.partner_lng = partnerLocation.long.toString();
+          await shipment.save();
+        }
+      } catch (err) {
+        console.error("Porter tracking fetch failed:", err.message);
+      }
+    }
+
+    return sendResponse(res, 200, true, "Shipment fetched successfully", shipment);
+  } catch (error) {
+    console.error("Error in trackShipment:", error.message);
+    return sendResponse(res, 500, false, "Something went wrong");
   }
 };
+
 
 /**
  *
