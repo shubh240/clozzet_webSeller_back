@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { Otp } from "../models/otp.model.js";
 import crypto from "crypto";
 import AWS from "aws-sdk";
-import { sendOtp, sns } from "../config/awsConfig.js";
+import { sendOtp } from "../config/awsConfig.js";
 import { sendResponse } from "../common/index.js";
 import cloudinary from "../config/cloudinary.js";
 import fs from "fs";
