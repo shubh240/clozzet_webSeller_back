@@ -327,7 +327,8 @@ export const getSellerDashboardCounts = async (req, res) => {
       {
         $match: {
           sellerId: new mongoose.Types.ObjectId(sellerId),
-          paymentStatus: "Success"
+          paymentStatus: "Success",
+          orderStatus : "Delivered"
         },
       },
       {
