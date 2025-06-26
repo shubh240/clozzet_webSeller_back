@@ -1,21 +1,30 @@
-import dotenv from 'dotenv';
+import dotenv from "dotenv";
 dotenv.config();
-import twilio from 'twilio';
+import twilio from "twilio";
 
-console.log('process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN',process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN,process.env.TWILIO_PHONE_NUMBER)
-const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+console.log(
+  "process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN",
+  process.env.TWILIO_ACCOUNT_SID,
+  process.env.TWILIO_AUTH_TOKEN,
+  process.env.TWILIO_PHONE_NUMBER
+);
+const client = twilio(
+  process.env.TWILIO_ACCOUNT_SID,
+  process.env.TWILIO_AUTH_TOKEN
+);
 
 export const sendOtp = async (mobileNo, otp) => {
   const formattedNumber = `+91${mobileNo}`;
-  console.log('formattedNumber',formattedNumber)
+  console.log("formattedNumber", formattedNumber);
   const message = `Your OTP from Clozzet India is: ${otp}. It is valid for 10 minutes.`;
 
-   try {
+  try {
     const result = await client.messages.create({
       body: message,
       from: process.env.TWILIO_PHONE_NUMBER,
       to: formattedNumber,
     });
+
 
     console.log(`✅ OTP sent to ${formattedNumber}: SID ${result.sid}`);
     return { success: true, sid: result.sid };
@@ -28,7 +37,7 @@ export const sendOtp = async (mobileNo, otp) => {
 
 // AWS.config.update({
 //   region: 'us-east-1',
-//   accessKeyId: process.env.AWS_ACCESS_KEY_ID,     
+//   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
 //   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
 // });
 

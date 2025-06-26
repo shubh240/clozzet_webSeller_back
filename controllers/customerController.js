@@ -190,7 +190,7 @@ export const verifyOtp = async (req, res) => {
     };
 
     const token = jwt.sign(tokenPayload, process.env.JWT_SECRET_KEY, {
-      expiresIn: "7d",
+      expiresIn: "90d",
     });
 
     // Update customer as active and store token
@@ -205,7 +205,7 @@ export const verifyOtp = async (req, res) => {
     // Set token in cookie
     res.cookie("token", token, {
       httpOnly: true,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge: 90 * 24 * 60 * 60 * 1000,
       sameSite: "strict",
     });
 
