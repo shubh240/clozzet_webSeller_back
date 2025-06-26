@@ -123,8 +123,8 @@ export const generateOtp = async (req, res) => {
         .json({ message: "Customer not found.", success: false });
     }
 
-    // const otp = crypto.randomInt(100000, 999999).toString();
-    const otp = 1234;
+    const otp = crypto.randomInt(1000, 9999).toString();
+    // const otp = 1234;
     const expiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000);
 
     // Save or update OTP in Otp collection
