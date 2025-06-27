@@ -1,6 +1,6 @@
 import { Coupon } from "../models/coupon.model.js";
 import { StoreInfo } from "../models/sellerStoreInfo.model.js";
-import { sendResponse,roundToTwo } from "../common/index.js";
+import { sendResponse, roundToTwo } from "../common/index.js";
 import mongoose from "mongoose";
 import cloudinary from "../config/cloudinary.js";
 import fs from "fs";
@@ -103,9 +103,9 @@ export const createCoupon = async (req, res) => {
       description,
       couponCode,
       discountType,
-      discountValue : roundToTwo(discountValue),
-      minOrderAmount : roundToTwo(minOrderAmount),
-      maxDiscountAmount : roundToTwo(maxDiscountAmount),
+      discountValue: roundToTwo(discountValue),
+      minOrderAmount: roundToTwo(minOrderAmount),
+      maxDiscountAmount: roundToTwo(maxDiscountAmount),
       usageLimit,
       usageLimitPerUser,
       validFrom,
@@ -203,7 +203,7 @@ export const deleteCoupon = async (req, res) => {
   }
 };
 
-export const getCustomerCoupons = async (req, res) => {
+export const getCustomerCouponsOld = async (req, res) => {
   try {
     const { storeId } = req.query;
     const today = new Date();
@@ -211,7 +211,7 @@ export const getCustomerCoupons = async (req, res) => {
     if (!storeId) {
       return sendResponse(res, 400, false, "storeId is required");
     }
-    
+
     const store = await StoreInfo.findOne({
       _id: new mongoose.Types.ObjectId(storeId),
       is_deleted: false,
@@ -219,7 +219,12 @@ export const getCustomerCoupons = async (req, res) => {
     });
 
     if (!store) {
-      return sendResponse(res, 400, false, "Store is either inactive or does not exist");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Store is either inactive or does not exist"
+      );
     }
     const coupons = await Coupon.find({
       storeId: new mongoose.Types.ObjectId(storeId),
@@ -234,6 +239,59 @@ export const getCustomerCoupons = async (req, res) => {
         ],
       },
     }).sort({ createdAt: -1 });
+
+    return sendResponse(res, 200, true, "Available coupons fetched", coupons);
+  } catch (err) {
+    return sendResponse(res, 500, false, err.message);
+  }
+};
+export const getCustomerCoupons = async (req, res) => {
+  try {
+    const { storeId } = req.query;
+    const today = new Date();
+
+    if (!storeId) {
+      return sendResponse(res, 400, false, "storeId is required");
+    }
+
+    const store = await StoreInfo.findOne({
+      _id: new mongoose.Types.ObjectId(storeId),
+      is_deleted: false,
+      isActive: true,
+    });
+
+    if (!store) {
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Store is either inactive or does not exist"
+      );
+    }
+
+    const coupons = await Coupon.aggregate([
+      {
+        $match: {
+          storeId: new mongoose.Types.ObjectId(storeId),
+          is_deleted: false,
+          isActive: true,
+          validFrom: { $lte: today },
+          validTill: { $gte: today },
+          $expr: {
+            $or: [
+              { $eq: ["$usageLimit", 0] },
+              { $lte: ["$currentUsagesCount", "$usageLimit"] },
+            ],
+          },
+        },
+      },
+      {
+        $addFields: { randomSort: { $rand: {} } }, // ✅ Generate random float between 0-1
+      },
+      {
+        $sort: { randomSort: 1 }, // ✅ Sort randomly
+      }, // ✅ Randomize all matching coupons
+    ]);
 
     return sendResponse(res, 200, true, "Available coupons fetched", coupons);
   } catch (err) {
@@ -272,16 +330,22 @@ export const homepageOffers = async (req, res) => {
 
     const offers = await Coupon.aggregate(aggregationPipeline);
 
-    return sendResponse(res, 200, true, "Homepage offers fetched successfully", {
-      offers,
-      pagination: {
-        total,
-        page: currentPage,
-        limit: perPage,
-        totalPages,
-      },
-    });
-    } catch (error) {
+    return sendResponse(
+      res,
+      200,
+      true,
+      "Homepage offers fetched successfully",
+      {
+        offers,
+        pagination: {
+          total,
+          page: currentPage,
+          limit: perPage,
+          totalPages,
+        },
+      }
+    );
+  } catch (error) {
     console.error("Error fetching homepage offers:", error);
     return sendResponse(res, 500, false, "Internal server error");
   }
