@@ -1,4 +1,5 @@
 import { Cart } from "../models/cart.model.js";
+import { Config } from "../models/config.model.js";
 import { sendResponse , roundToTwo } from "../common/index.js";
 import { CartProduct } from "../models/cartProduct.model.js";
 import { Product } from "../models/product.model.js";
@@ -298,10 +299,14 @@ export const calculateAndUpdateCartTotals = async (cartId) => {
     (sum, item) => sum + item.itemTotal,
     0
   );
-  const platform_fee = roundToTwo(10);
-  const delivery_fee = roundToTwo(20);
-  const cgst = roundToTwo(sub_total_amount * 0.09);
-  const sgst = roundToTwo(sub_total_amount * 0.09);
+  
+  const neededConfigKeys = ["platform_fee", "delivery_fee"];
+  const configMap = await getConfigsByNames(neededConfigKeys);
+  
+  const platform_fee = configMap.platform_fee ? roundToTwo(parseFloat(configMap.platform_fee)) : 0;
+  const delivery_fee = configMap.delivery_fee ? roundToTwo(parseFloat(configMap.delivery_fee)) : 0;
+  const cgst = configMap.cgst ? roundToTwo(parseFloat(configMap.cgst)) : 0;
+  const sgst = configMap.sgst ? roundToTwo(parseFloat(configMap.sgst)) : 0;
   const total_amount = roundToTwo(sub_total_amount + platform_fee + delivery_fee + cgst + sgst);
 
   await Cart.findByIdAndUpdate(cartId, {
@@ -428,4 +433,19 @@ export const applyCouponToCart = async (req, res) => {
   } catch (error) {
     return sendResponse(res, 500, false, error.message);
   }
+};
+
+export const getConfigsByNames = async (namesArray) => {
+  const configs = await Config.find({
+    name: { $in: namesArray },
+    status: true,
+    isDeleted: false,
+  });
+
+  const configMap = {};
+  configs.forEach((item) => {
+    configMap[item.name] = item.value;
+  });
+
+  return configMap;
 };
