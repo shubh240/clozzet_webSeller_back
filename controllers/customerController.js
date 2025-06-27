@@ -56,30 +56,27 @@ export const signup = async (req, res) => {
   }
 };
 
-export const generateOtpOld = async (req, res) => {
+export const generateOtp = async (req, res) => {
   try {
     const { countryCode, mobileNo } = req.body;
     if (!mobileNo || !countryCode) {
-      return sendResponse(
-        res,
-        400,
-        false,
-        "Mobile Number and countryCode are required"
-      );
+      return sendResponse(res, 400, false, "Mobile Number and countryCode are required");
     }
+
     const customer = await Customer.findOne({ mobileNo, countryCode });
-
     if (!customer) {
-      return res
-        .status(404)
-        .json({ message: "Customer not found.", success: false });
+      return res.status(404).json({ message: "Customer not found.", success: false });
     }
 
-    // const otp = crypto.randomInt(100000, 999999).toString();
-    const otp = 1234;
+    const testNumbers = ["6351635713", "7984865391"];
+    let otp = "1234";
+
+    if (!testNumbers.includes(mobileNo)) {
+      otp = crypto.randomInt(1000, 9999).toString();
+    }
+
     const expiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000);
 
-    // Save or update OTP in Otp collection
     await Otp.findOneAndUpdate(
       { mobileNo },
       {
@@ -90,13 +87,13 @@ export const generateOtpOld = async (req, res) => {
       { upsert: true, new: true }
     );
 
-    // Format number in E.164 format
-    const formattedNumber = `+91${mobileNo}`;
+    if (!testNumbers.includes(mobileNo)) {
+      const sendResult = await sendOtp(mobileNo, otp);
+      if (!sendResult.success) {
+        return sendResponse(res, 500, false, "Failed to send OTP");
+      }
+    }
 
-    const message = `Your OTP is: ${otp}. It is valid for ${OTP_EXPIRY_MINUTES} minutes.`;
-
-    // Send SMS logic here
-    // await sns.publish({ Message: message, PhoneNumber: formattedNumber }).promise();
     return sendResponse(res, 201, true, "OTP sent to your mobile number.");
   } catch (err) {
     console.error("OTP Send Error:", err);
@@ -104,7 +101,7 @@ export const generateOtpOld = async (req, res) => {
   }
 };
 
-export const generateOtp = async (req, res) => {
+export const generateOtpOld = async (req, res) => {
   try {
     const { countryCode, mobileNo } = req.body;
     if (!mobileNo || !countryCode) {
