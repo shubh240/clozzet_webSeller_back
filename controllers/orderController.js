@@ -60,7 +60,7 @@ export const createOrder = async (req, res) => {
     } = req.body;
 
     const currentHour = new Date().getHours();
-    if (currentHour < 10 || currentHour >= 21) {
+    if (currentHour < 9 || currentHour >= 21) {
       return sendResponse(
         res,
         400,
