@@ -116,10 +116,7 @@ export const createOrder = async (req, res) => {
     const storeLng = store?.position?.lng;
     const customerLat = customerAddress?.location?.coordinates?.[0];
     const customerLng = customerAddress?.location?.coordinates?.[1];
-    console.log('storeLat -->',storeLat)
-    console.log('storeLng -->',storeLng)
-    console.log('customerLat -->',customerLat)
-    console.log('customerLng -->',customerLng)
+    
     if (
       storeLat == null || storeLng == null ||
       customerLat == null || customerLng == null
@@ -137,6 +134,11 @@ export const createOrder = async (req, res) => {
         false,
         "Sorry, delivery is only available within 15 km from the store"
       );
+    }
+
+    // ✅ Apply long-distance delivery fee
+    if (distance > 8) {
+      cart.delivery_fee = 45;
     }
     /**
      * Get Cart Products
@@ -207,7 +209,14 @@ export const createOrder = async (req, res) => {
       cgst: roundToTwo(cart?.cgst) || 0,
       sgst: roundToTwo(cart?.sgst) || 0,
       sgst: roundToTwo(cart?.sgst) || 0,
-      totalAmount: roundToTwo(cart?.total_amount) || 0,
+      totalAmount: roundToTwo(
+        cart?.sub_total_amount + 
+        (cart?.platform_fee || 0) + 
+        (cart?.delivery_fee || 0) + 
+        (cart?.cgst || 0) + 
+        (cart?.sgst || 0) -
+        (cart?.discountAmount || 0)
+      ) || 0,
       paymentStatus: paymentTypeId === 1 ? "Success" : "Pending",
     });
 
