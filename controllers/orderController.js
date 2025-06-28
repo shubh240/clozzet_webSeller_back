@@ -93,15 +93,8 @@ export const createOrder = async (req, res) => {
       );
     }
 
-    if(!store.storeOn) 
-    {
-      return sendResponse(
-        res,
-        400,
-        false,
-        "Store is off, cannot place order"
-      );
-
+    if (!store.storeOn) {
+      return sendResponse(res, 400, false, "Store is off, cannot place order");
     }
 
     /**
@@ -116,16 +109,23 @@ export const createOrder = async (req, res) => {
     const storeLng = store?.position?.lng;
     const customerLat = customerAddress?.location?.coordinates?.[0];
     const customerLng = customerAddress?.location?.coordinates?.[1];
-    
+
     if (
-      storeLat == null || storeLng == null ||
-      customerLat == null || customerLng == null
+      storeLat == null ||
+      storeLng == null ||
+      customerLat == null ||
+      customerLng == null
     ) {
       return sendResponse(res, 400, false, "Invalid location data");
     }
 
-    const distance = getDistanceInKm(storeLat, storeLng, customerLat, customerLng);
-    console.log('distance',distance);
+    const distance = getDistanceInKm(
+      storeLat,
+      storeLng,
+      customerLat,
+      customerLng
+    );
+    console.log("distance", distance);
 
     if (distance > 15) {
       return sendResponse(
@@ -209,14 +209,15 @@ export const createOrder = async (req, res) => {
       cgst: roundToTwo(cart?.cgst) || 0,
       sgst: roundToTwo(cart?.sgst) || 0,
       sgst: roundToTwo(cart?.sgst) || 0,
-      totalAmount: roundToTwo(
-        cart?.sub_total_amount + 
-        (cart?.platform_fee || 0) + 
-        (cart?.delivery_fee || 0) + 
-        (cart?.cgst || 0) + 
-        (cart?.sgst || 0) -
-        (cart?.discountAmount || 0)
-      ) || 0,
+      totalAmount:
+        roundToTwo(
+          cart?.sub_total_amount +
+            (cart?.platform_fee || 0) +
+            (cart?.delivery_fee || 0) +
+            (cart?.cgst || 0) +
+            (cart?.sgst || 0) -
+            (cart?.discountAmount || 0)
+        ) || 0,
       paymentStatus: paymentTypeId === 1 ? "Success" : "Pending",
     });
 
@@ -2911,7 +2912,7 @@ export const listOrders = async (req, res) => {
           orderId: new mongoose.Types.ObjectId(order._id),
         })
           .populate({ path: "categoryId", select: "name" })
-          .populate({ path: "subcategoryId", select: "name" })
+          .populate({ path: "subcategoryId", select: "name isReturn" })
           .populate({ path: "color", select: "name image" })
           .populate({
             path: "productId",
@@ -2972,7 +2973,7 @@ export const getOrderDetails = async (req, res) => {
 
     // Find the order
     const order = await Order.findById(orderId)
-      .populate({ path: "storeId", select: "storeName city state storeAddress" })
+      .populate({ path: "storeId", select: "storeName city state" })
       .populate({ path: "sellerId", select: "userInfo userAuth.email" })
       .populate({ path: "customerId", select: "fullName email mobileNo" })
       .populate({ path: "customerAddressId" })
@@ -2985,11 +2986,11 @@ export const getOrderDetails = async (req, res) => {
     // Fetch order items
     const items = await OrderItem.find({ orderId: order._id })
       .populate({ path: "categoryId", select: "name" })
-      .populate({ path: "subcategoryId", select: "name" })
+      .populate({ path: "subcategoryId", select: "name isReturn" })
       .populate({ path: "color", select: "name image" })
       .populate({
         path: "productId",
-        select: "name primaryImage description sellingPrice brandName",
+        select: "name primaryImage description sellingPrice",
       })
       .populate({
         path: "productSizeId",
