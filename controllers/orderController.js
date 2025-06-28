@@ -2928,7 +2928,7 @@ export const getOrderDetails = async (req, res) => {
 
     // Find the order
     const order = await Order.findById(orderId)
-      .populate({ path: "storeId", select: "storeName city state" })
+      .populate({ path: "storeId", select: "storeName city state storeAddress" })
       .populate({ path: "sellerId", select: "userInfo userAuth.email" })
       .populate({ path: "customerId", select: "fullName email mobileNo" })
       .populate({ path: "customerAddressId" })
@@ -2945,7 +2945,7 @@ export const getOrderDetails = async (req, res) => {
       .populate({ path: "color", select: "name image" })
       .populate({
         path: "productId",
-        select: "name primaryImage description sellingPrice",
+        select: "name primaryImage description sellingPrice brandName",
       })
       .populate({
         path: "productSizeId",
