@@ -300,11 +300,11 @@ export const calculateAndUpdateCartTotals = async (cartId) => {
     0
   );
   
-  const neededConfigKeys = ["platform_fee", "delivery_fee"];
+  const neededConfigKeys = ["platformfee", "deliveryfee"];
   const configMap = await getConfigsByNames(neededConfigKeys);
   
-  const platform_fee = configMap.platform_fee ? roundToTwo(parseFloat(configMap.platform_fee)) : 0;
-  const delivery_fee = configMap.delivery_fee ? roundToTwo(parseFloat(configMap.delivery_fee)) : 0;
+  const platform_fee = configMap.platformfee ? roundToTwo(parseFloat(configMap.platformfee)) : 0;
+  const delivery_fee = configMap.deliveryfee ? roundToTwo(parseFloat(configMap.deliveryfee)) : 0;
   const cgst = configMap.cgst ? roundToTwo(parseFloat(configMap.cgst)) : 0;
   const sgst = configMap.sgst ? roundToTwo(parseFloat(configMap.sgst)) : 0;
   const total_amount = roundToTwo(sub_total_amount + platform_fee + delivery_fee + cgst + sgst);

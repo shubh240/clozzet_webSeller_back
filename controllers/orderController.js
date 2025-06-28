@@ -47,6 +47,8 @@ import {
 import { SellerUserAuth } from "../models/sellerUserInfo.model.js";
 import crypto from "crypto";
 import { ReturnShipmentHistory } from "../models/returnshipmentHistory.model.js";
+import {getConfigsByNames} from "./cartController.js"
+
 /**
  *
  * Create an order
@@ -136,9 +138,13 @@ export const createOrder = async (req, res) => {
       );
     }
 
+    const neededConfigKeys = ["deliveryfee"];
+    const configMap = await getConfigsByNames(neededConfigKeys);
+    
+    const delivery_fee = configMap.deliveryfee ? roundToTwo(parseFloat(configMap.deliveryfee)) : 0;
     // ✅ Apply long-distance delivery fee
     if (distance > 8) {
-      cart.delivery_fee = 45;
+      cart.delivery_fee = delivery_fee;
     }
     /**
      * Get Cart Products
@@ -717,6 +723,91 @@ export const returnOrder = async (req, res) => {
         false,
         "We haven't received your payment yet. Please complete the payment to request a return."
       );
+
+      const closingTime = order.storeId.limitTime?.maximum;
+      if (closingTime) {
+        const [closeHour, closeMinute] = closingTime.split(":").map(Number);
+
+        const nowIST = new Date().toLocaleString("en-US", {
+          timeZone: "Asia/Kolkata",
+        });
+        const currentIST = new Date(nowIST);
+
+        const closingTimeIST = new Date(nowIST);
+        closingTimeIST.setHours(closeHour);
+        closingTimeIST.setMinutes(closeMinute);
+        closingTimeIST.setSeconds(0);
+        closingTimeIST.setMilliseconds(0);
+
+        const oneHourBeforeClosing = new Date(closingTimeIST.getTime() - 60 * 60 * 1000);
+        console.log('oneHourBeforeClosing',oneHourBeforeClosing)
+        console.log('currentIST',currentIST)
+        // if (currentIST >= oneHourBeforeClosing) {
+        //   return sendResponse(
+        //     res,
+        //     400,
+        //     false,
+        //     "Return requests must be made at least 1 hour before store closing time."
+        //   );
+        // }
+
+        // Check if order was created between 1 hour before closing and store close time
+        if (order.createdAt) {
+          const [closeHour, closeMinute] = closingTime.split(":").map(Number);
+
+          const orderCreatedIST = new Date(
+            new Date(order.createdAt).toLocaleString("en-US", {
+              timeZone: "Asia/Kolkata",
+            })
+          );
+
+          const oneHourBeforeClose = new Date(orderCreatedIST);
+          oneHourBeforeClose.setHours(closeHour - 1);
+          oneHourBeforeClose.setMinutes(closeMinute);
+          oneHourBeforeClose.setSeconds(0);
+          oneHourBeforeClose.setMilliseconds(0);
+
+          const closeTimeDate = new Date(orderCreatedIST);
+          closeTimeDate.setHours(closeHour);
+          closeTimeDate.setMinutes(closeMinute);
+          closeTimeDate.setSeconds(0);
+          closeTimeDate.setMilliseconds(0);
+
+          const createdLateNight =
+            orderCreatedIST >= oneHourBeforeClose && orderCreatedIST <= closeTimeDate;
+
+          if (createdLateNight) {
+            const openTime = order.storeId.limitTime?.minimum || "10:00";
+            const [openHour, openMinute] = openTime.split(":").map(Number);
+
+            const nowIST = new Date(
+              new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+            );
+
+            const todayOpenTime = new Date(nowIST);
+            todayOpenTime.setHours(openHour);
+            todayOpenTime.setMinutes(openMinute);
+            todayOpenTime.setSeconds(0);
+            todayOpenTime.setMilliseconds(0);
+
+            const twoHoursAfterOpen = new Date(
+              todayOpenTime.getTime() + 2 * 60 * 60 * 1000
+            );
+
+            if (!(nowIST >= todayOpenTime && nowIST <= twoHoursAfterOpen)) {
+              return sendResponse(
+                res,
+                400,
+                false,
+                `This order was placed late near store closing time. Return is only allowed between ${openTime} and ${twoHoursAfterOpen
+                  .toTimeString()
+                  .slice(0, 5)} IST on the next store day.`
+              );
+            }
+          }
+        }
+
+      }
 
     const existingReturns = await ReturnProduct.find({
       orderItemId: { $in: parsedOrderItemIds },
