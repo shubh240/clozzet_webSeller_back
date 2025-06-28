@@ -9,6 +9,7 @@ import { Shipment } from "../models/shipment.model.js";
 import { ShipmentHistory } from "../models/shipmentHistory.model.js";
 import { v4 as uuidv4 } from "uuid";
 import { sendResponse, roundToTwo } from "../common/index.js";
+import { getDistanceInKm } from "../common/distance.js";
 import { calculateAndUpdateCartTotals } from "./cartController.js";
 import { ShipmentProvider } from "../models/shipmentProvider.model.js";
 import {
@@ -103,6 +104,40 @@ export const createOrder = async (req, res) => {
 
     }
 
+    /**
+     * Check Customer Distance < 15km
+     */
+    const customerAddress = await CustomerAddress.findById(customerAddressId);
+    if (!customerAddress) {
+      return sendResponse(res, 404, false, "Customer address not found");
+    }
+
+    const storeLat = store?.position?.lat;
+    const storeLng = store?.position?.lng;
+    const customerLat = customerAddress?.location?.coordinates?.[0];
+    const customerLng = customerAddress?.location?.coordinates?.[1];
+    console.log('storeLat -->',storeLat)
+    console.log('storeLng -->',storeLng)
+    console.log('customerLat -->',customerLat)
+    console.log('customerLng -->',customerLng)
+    if (
+      storeLat == null || storeLng == null ||
+      customerLat == null || customerLng == null
+    ) {
+      return sendResponse(res, 400, false, "Invalid location data");
+    }
+
+    const distance = getDistanceInKm(storeLat, storeLng, customerLat, customerLng);
+    console.log('distance',distance);
+
+    if (distance > 15) {
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Sorry, delivery is only available within 15 km from the store"
+      );
+    }
     /**
      * Get Cart Products
      */
