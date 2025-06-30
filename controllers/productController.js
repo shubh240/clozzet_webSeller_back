@@ -254,6 +254,11 @@ export const getProducts = async (req, res) => {
         },
       },
       {
+        $addFields: {
+          storeInfo: { $arrayElemAt: ["$storeInfo", 0] }
+        }
+      },
+      {
         $lookup: {
           from: "colors",
           localField: "colors",
@@ -417,6 +422,11 @@ export const getProductById = async (req, res) => {
           ],
           as: "storeInfo",
         },
+      },
+      {
+        $addFields: {
+          storeInfo: { $arrayElemAt: ["$storeInfo", 0] }
+        }
       },
       {
         $lookup: {
