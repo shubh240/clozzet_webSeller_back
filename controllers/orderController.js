@@ -1437,6 +1437,7 @@ export const porterWebhook = async (req, res) => {
         });
         returnRequest.status = "Return Completed";
         order.orderStatus = "Return Completed";
+        order.deliveredTime = new Date();
         await order.save();
         await returnRequest.save();
       } else {
@@ -1445,6 +1446,7 @@ export const porterWebhook = async (req, res) => {
           ...historyData,
         });
         order.orderStatus = "Delivered";
+        order.deliveredTime = new Date();
         await order.save();
 
         if (seller?.fcmToken) {

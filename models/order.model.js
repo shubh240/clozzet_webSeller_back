@@ -84,7 +84,11 @@ const orderSchema = new mongoose.Schema(
     currency: {
       type: String,
       default: "INR",
-    }
+    },
+    deliveredTime: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true
