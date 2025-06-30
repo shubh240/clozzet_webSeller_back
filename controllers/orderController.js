@@ -1534,15 +1534,15 @@ export const porterWebhook = async (req, res) => {
         }
       }
     } else if (status === "order_cancel") {
-      target.currentStatus = "Partner Cancelled";
+      target.currentStatus = "Shipment Cancelled";
       await target.save();
 
       const historyData = {
-        currentStatus: "Partner Cancelled",
+        currentStatus: "Shipment Cancelled",
         partner_lat: null,
         partner_lng: null,
         location: "",
-        description: "Order has been cancelled by delivery partner.",
+        description: "Order has been cancelled by shipment provider.",
       };
 
       if (isReturn) {
@@ -1550,26 +1550,26 @@ export const porterWebhook = async (req, res) => {
           returnId: returnRequest._id,
           ...historyData,
         });
-        returnRequest.status = "Partner Cancelled";
+        returnRequest.status = "Shipment Cancelled";
         await returnRequest.save();
       } else {
         await ShipmentHistory.create({
           shipmentId: shipment._id,
           ...historyData,
         });
-        order.orderStatus = "Partner Cancelled";
+        order.orderStatus = "Shipment Cancelled";
         await order.save();
 
         if (seller?.fcmToken) {
           await sendSellerNotification(
             seller.fcmToken,
             {
-              title: "Order Cancelled by delivery partner",
-              body: `Order #${order.orderNumber} has been cancelled by delivery partner.`,
+              title: "Order Cancelled by shipment provider",
+              body: `Order #${order.orderNumber} has been cancelled by shipment provider.`,
               data: {
                 orderId: order._id.toString(),
                 shipmentId: shipment._id.toString(),
-                status: "Partner Cancelled",
+                status: "Shipment Cancelled",
                 isFullScreen: "false",
               },
             },
@@ -1585,7 +1585,7 @@ export const porterWebhook = async (req, res) => {
               body: `Your order #${order.orderNumber} has been cancelled.`,
               data: {
                 orderId: order._id.toString(),
-                status: "Partner Cancelled",
+                status: "Shipment Cancelled",
               },
             },
             customer._id
@@ -1813,11 +1813,11 @@ export const porterWebhookNotification = async (req, res) => {
         customer,
       });
     } else if (status === "order_cancel") {
-      target.currentStatus = "Partner Cancelled";
+      target.currentStatus = "Shipment Cancelled";
       await target.save();
 
       const historyData = {
-        currentStatus: "Partner Cancelled",
+        currentStatus: "Shipment Cancelled",
         partner_lat: null,
         partner_lng: null,
         location: "",
@@ -1829,14 +1829,14 @@ export const porterWebhookNotification = async (req, res) => {
           returnId: returnRequest._id,
           ...historyData,
         });
-        returnRequest.status = "Partner Cancelled";
+        returnRequest.status = "Shipment Cancelled";
         await returnRequest.save();
       } else {
         await ShipmentHistory.create({
           shipmentId: shipment._id,
           ...historyData,
         });
-        order.orderStatus = "Partner Cancelled";
+        order.orderStatus = "Shipment Cancelled";
         await order.save();
       }
 
