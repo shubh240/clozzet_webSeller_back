@@ -247,7 +247,7 @@ export const getProducts = async (req, res) => {
               },
             },
             {
-              $project: { _id: 1, storeName: 1 },
+              $project: { _id: 1, storeName: 1 ,storeOnTime: "$limitTime.minimum",storeClosedTime: "$limitTime.maximum" },
             },
           ],
           as: "storeInfo",
@@ -261,17 +261,6 @@ export const getProducts = async (req, res) => {
           as: "colors",
         },
       },
-      {
-        $addFields: {
-          storeId: { $arrayElemAt: ["$storeInfo._id", 0] },
-          storeName: { $arrayElemAt: ["$storeInfo.storeName", 0] },
-        },
-      },
-      {
-        $project: {
-          storeInfo: 0,
-        },
-      }
     );
 
     if (brandName) {
@@ -423,16 +412,10 @@ export const getProductById = async (req, res) => {
               },
             },
             {
-              $project: { _id: 1, storeName: 1 },
+              $project: { _id: 1, storeName: 1 ,storeOnTime: "$limitTime.minimum",storeClosedTime: "$limitTime.maximum" },
             },
           ],
           as: "storeInfo",
-        },
-      },
-      {
-        $addFields: {
-          storeId: { $arrayElemAt: ["$storeInfo._id", 0] },
-          storeName: { $arrayElemAt: ["$storeInfo.storeName", 0] },
         },
       },
       {
@@ -466,11 +449,6 @@ export const getProductById = async (req, res) => {
             },
           ],
           as: "productSizes",
-        },
-      },
-      {
-        $project: {
-          storeInfo: 0,
         },
       },
     ];

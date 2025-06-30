@@ -26,6 +26,9 @@ export const createProductSize = async (req, res) => {
       return sendResponse(res, 201, true, "Product size created", newProductSize);
     } catch (error) {
       console.error("Create Product Size Error:", error);
+      if (error.code === 11000 && error.keyPattern?.sku) {
+        return sendResponse(res, 400, false, "SKU already exists. Please use a different SKU.");
+      }
       return sendResponse(res, 500, false, "Internal server error");
     }
 };
@@ -70,9 +73,17 @@ export const updateProductSize = async (req, res) => {
       if (!productSize || productSize.isDeleted) {
         return sendResponse(res, 404, false, "Product size not found or is deleted");
       }
-  
+
+      // Check for duplicate SKU if it's being updated
+      if (sku !== productSize.sku) {
+        const existing = await ProductSize.findOne({ sku });
+        if (existing) {
+          return sendResponse(res, 400, false, "SKU already exists. Please use a different SKU.");
+        }
+        productSize.sku = sku;
+      }
+
       productSize.size = size || productSize.size;
-      productSize.sku = sku || productSize.sku;
       productSize.quantity = quantity || productSize.quantity;
       productSize.updatedBy = sellerId;
   
