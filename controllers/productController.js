@@ -1078,7 +1078,7 @@ export const homePageProductList = async (req, res) => {
 
 export const globalSearch = async (req, res) => {
   try {
-    const { search, page, limit, city } = req.body;
+    const { search, page, limit, city ,category } = req.body;
 
     if (!search || search.trim() === "") {
       return sendResponse(res, 400, false, "search is required");
@@ -1089,7 +1089,11 @@ export const globalSearch = async (req, res) => {
     const pagination = page && limit;
 
     const productPipeline = [
-      { $match: { isDeleted: false, name: { $regex: regex } } },
+      { $match: { 
+        isDeleted: false, 
+        name: { $regex: regex } ,
+         ...(category && { category: new mongoose.Types.ObjectId(category)}),
+      } },
       ...(city
         ? [
             {
