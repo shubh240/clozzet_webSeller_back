@@ -87,12 +87,12 @@ export const generateOtp = async (req, res) => {
       { upsert: true, new: true }
     );
 
-    if (!testNumbers.includes(mobileNo)) {
-      const sendResult = await sendOtp(mobileNo, otp);
-      if (!sendResult.success) {
-        return sendResponse(res, 500, false, "Failed to send OTP");
-      }
-    }
+    // if (!testNumbers.includes(mobileNo)) {
+    //   const sendResult = await sendOtp(mobileNo, otp);
+    //   if (!sendResult.success) {
+    //     return sendResponse(res, 500, false, "Failed to send OTP");
+    //   }
+    // }
 
     return sendResponse(res, 201, true, "OTP sent to your mobile number.");
   } catch (err) {

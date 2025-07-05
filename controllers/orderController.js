@@ -58,7 +58,7 @@ export const createOrder = async (req, res) => {
   try {
     const {
       cartId,
-      customerAddressId,
+      // customerAddressId,
       paymentTypeId, // 1 = COD, 2 = Online
     } = req.body;
 
@@ -72,7 +72,7 @@ export const createOrder = async (req, res) => {
       );
     }
 
-    if (!cartId || !customerAddressId || !paymentTypeId) {
+    if (!cartId || !paymentTypeId) {
       return sendResponse(res, 400, false, "All fileds are required");
     }
 
@@ -81,7 +81,7 @@ export const createOrder = async (req, res) => {
      */
     const cart = await Cart.findOne({ _id: cartId });
     if (!cart) return sendResponse(res, 404, false, "Cart not found");
-
+    const customerAddressId = cart?.customerAddressId
     /**
      * Store In-Active (cannot place order)
      */
@@ -137,15 +137,7 @@ export const createOrder = async (req, res) => {
         "Sorry, delivery is only available within 15 km from the store"
       );
     }
-
-    const neededConfigKeys = ["deliveryfee"];
-    const configMap = await getConfigsByNames(neededConfigKeys);
     
-    const delivery_fee = configMap.deliveryfee ? roundToTwo(parseFloat(configMap.deliveryfee)) : 0;
-    // ✅ Apply long-distance delivery fee
-    if (distance > 8) {
-      cart.delivery_fee = delivery_fee;
-    }
     /**
      * Get Cart Products
      */
