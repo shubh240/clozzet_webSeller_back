@@ -13,10 +13,12 @@ import { getDistanceInKm } from "../common/distance.js";
 
 export const addToCart = async (req, res) => {
   try {
-    const { storeId, productId, sizeId, quantity,customerAddressId } = req.body;
+    // const { storeId, productId, sizeId, quantity,customerAddressId } = req.body;
+    const { storeId, productId, sizeId, quantity } = req.body;
     const customerId = req.id;
 
-    if (!storeId || !productId || !sizeId || !quantity || !customerAddressId ) {
+    if (!storeId || !productId || !sizeId || !quantity  ) {
+    // if (!storeId || !productId || !sizeId || !quantity || !customerAddressId ) {
       return sendResponse(res, 400, false, "Missing required fields");
     }
 
@@ -58,7 +60,7 @@ export const addToCart = async (req, res) => {
 
     let cart = await Cart.findOne({ customerId, storeId });
     if (!cart) {
-      cart = await Cart.create({ customerId, storeId,sellerId ,customerAddressId });
+      cart = await Cart.create({ customerId, storeId,sellerId });
     }
 
     const cartProduct = await CartProduct.findOne({
@@ -83,7 +85,8 @@ export const addToCart = async (req, res) => {
     await CartProduct.create({ cartId: cart._id, productId, sizeId, quantity });
 
     // 🔁 Inline updateCartTotals function
-    await calculateAndUpdateCartTotals(cart._id, storeId, customerAddressId);
+    await calculateAndUpdateCartTotals(cart._id);
+    // await calculateAndUpdateCartTotals(cart._id, storeId, customerAddressId);
 
     return sendResponse(res, 201, true, "Item added to cart");
   } catch (error) {
@@ -137,7 +140,8 @@ export const updateCartProduct = async (req, res) => {
     const cartData = await Cart.findById(cartId);
     const storeId = cartData.storeId;
     const customerAddressId = cartData?.customerAddressId;
-    await calculateAndUpdateCartTotals(cartId, storeId, customerAddressId);
+    await calculateAndUpdateCartTotals(cartId);
+    // await calculateAndUpdateCartTotals(cartId, storeId, customerAddressId);
 
 
     return sendResponse(res, 200, true, "Cart product updated", updatedCart);
@@ -223,7 +227,7 @@ export const getCart = async (req, res) => {
       cartId: cart._id,
       storeId: cart.storeId,
       sellerId : cart.sellerId,
-      customerAddressId : cart.customerAddressId,
+      // customerAddressId : cart.customerAddressId,
       items,
       sub_total_amount : cart.sub_total_amount,
       platform_fee : cart.platform_fee,
@@ -268,7 +272,8 @@ export const removeCartItems = async (req, res) => {
     const cartData = await Cart.findById(cartId);
     const storeId = cartData.storeId;
     const customerAddressId = cartData?.customerAddressId;
-    await calculateAndUpdateCartTotals(cartId, storeId, customerAddressId);
+    await calculateAndUpdateCartTotals(cartId);
+    // await calculateAndUpdateCartTotals(cartId, storeId, customerAddressId);
 
     return sendResponse(res, 200, true, "Selected items removed from cart");
   } catch (err) {
@@ -276,7 +281,7 @@ export const removeCartItems = async (req, res) => {
   }
 };
 
-export const calculateAndUpdateCartTotals = async (cartId, storeId, customerAddressId) => {
+export const calculateAndUpdateCartTotals = async (cartId) => {
   const cartProducts = await CartProduct.aggregate([
     { $match: { cartId } },
     {
@@ -306,39 +311,6 @@ export const calculateAndUpdateCartTotals = async (cartId, storeId, customerAddr
 
   let delivery_fee = 0;
 
-  // ✅ Apply distance based delivery fee
-  if (storeId && customerAddressId) {
-    const store = await StoreInfo.findById(storeId);
-    const customerAddress = await CustomerAddress.findById(customerAddressId);
-
-    if (store && customerAddress) {
-      const storeLat = store?.position?.lat;
-      const storeLng = store?.position?.lng;
-      const customerLat = customerAddress?.location?.coordinates?.[0];
-      const customerLng = customerAddress?.location?.coordinates?.[1];
-
-      if (
-        storeLat != null &&
-        storeLng != null &&
-        customerLat != null &&
-        customerLng != null
-      ) {
-        const distance = getDistanceInKm(
-          storeLat,
-          storeLng,
-          customerLat,
-          customerLng
-        );
-
-        if (distance > 8) {
-          delivery_fee = configMap.deliveryfee
-            ? roundToTwo(parseFloat(configMap.deliveryfee))
-            : 0;
-        }
-      }
-    }
-  }
-
   const platform_fee = configMap.platformfee ? roundToTwo(parseFloat(configMap.platformfee)) : 0;
   const cgst = configMap.cgst ? roundToTwo(parseFloat(configMap.cgst)) : 0;
   const sgst = configMap.sgst ? roundToTwo(parseFloat(configMap.sgst)) : 0;
@@ -363,6 +335,93 @@ export const calculateAndUpdateCartTotals = async (cartId, storeId, customerAddr
     total_amount,
   };
 };
+// export const calculateAndUpdateCartTotals = async (cartId, storeId, customerAddressId) => {
+//   const cartProducts = await CartProduct.aggregate([
+//     { $match: { cartId } },
+//     {
+//       $lookup: {
+//         from: "products",
+//         localField: "productId",
+//         foreignField: "_id",
+//         as: "product",
+//       },
+//     },
+//     { $unwind: "$product" },
+//     { $match: { "product.isDeleted": false } },
+//     {
+//       $project: {
+//         itemTotal: { $multiply: ["$quantity", "$product.sellingPrice"] },
+//       },
+//     },
+//   ]);
+
+//   const sub_total_amount = cartProducts.reduce(
+//     (sum, item) => sum + item.itemTotal,
+//     0
+//   );
+
+//   const neededConfigKeys = ["platformfee", "deliveryfee", "cgst", "sgst"];
+//   const configMap = await getConfigsByNames(neededConfigKeys);
+
+//   let delivery_fee = 0;
+
+//   // ✅ Apply distance based delivery fee
+//   if (storeId && customerAddressId) {
+//     const store = await StoreInfo.findById(storeId);
+//     const customerAddress = await CustomerAddress.findById(customerAddressId);
+
+//     if (store && customerAddress) {
+//       const storeLat = store?.position?.lat;
+//       const storeLng = store?.position?.lng;
+//       const customerLat = customerAddress?.location?.coordinates?.[0];
+//       const customerLng = customerAddress?.location?.coordinates?.[1];
+
+//       if (
+//         storeLat != null &&
+//         storeLng != null &&
+//         customerLat != null &&
+//         customerLng != null
+//       ) {
+//         const distance = getDistanceInKm(
+//           storeLat,
+//           storeLng,
+//           customerLat,
+//           customerLng
+//         );
+
+//         if (distance > 8) {
+//           delivery_fee = configMap.deliveryfee
+//             ? roundToTwo(parseFloat(configMap.deliveryfee))
+//             : 0;
+//         }
+//       }
+//     }
+//   }
+
+//   const platform_fee = configMap.platformfee ? roundToTwo(parseFloat(configMap.platformfee)) : 0;
+//   const cgst = configMap.cgst ? roundToTwo(parseFloat(configMap.cgst)) : 0;
+//   const sgst = configMap.sgst ? roundToTwo(parseFloat(configMap.sgst)) : 0;
+
+//   const total_amount = roundToTwo(sub_total_amount + platform_fee + delivery_fee + cgst + sgst);
+
+//   await Cart.findByIdAndUpdate(cartId, {
+//     sub_total_amount: roundToTwo(sub_total_amount),
+//     platform_fee,
+//     delivery_fee,
+//     cgst,
+//     sgst,
+//     total_amount,
+//   });
+
+//   return {
+//     sub_total_amount,
+//     platform_fee,
+//     delivery_fee,
+//     cgst,
+//     sgst,
+//     total_amount,
+//   };
+// };
 
 /**
  * Coupon Applying
