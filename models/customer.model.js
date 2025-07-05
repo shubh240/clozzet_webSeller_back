@@ -4,8 +4,9 @@ const customerModel = new mongoose.Schema(
   {
     fullName: {
       type: String,
-      required: true,
-    },  
+      //   required: true,
+      default: null,
+    },
     countryCode: {
       type: String,
       required: true,
@@ -20,14 +21,16 @@ const customerModel = new mongoose.Schema(
     },
     email: {
       type: String,
-      required: true,
-      unique: true,
+      //   required: true,
+      //   unique: true,
+      //   sparse: true,
+      default: null,
     },
     image: {
       type: String,
     },
-    token:{
-      type:String
+    token: {
+      type: String,
     },
     fcmToken: {
       type: String,
@@ -36,7 +39,11 @@ const customerModel = new mongoose.Schema(
     isActive: {
       type: Boolean,
       default: false,
-    }
+    },
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );

@@ -63,11 +63,22 @@ export const generateOtp = async (req, res) => {
       return sendResponse(res, 400, false, "Mobile Number and countryCode are required");
     }
 
-    const customer = await Customer.findOne({ mobileNo, countryCode });
-    if (!customer) {
-      return res.status(404).json({ message: "Customer not found.", success: false });
-    }
+    // const customer = await Customer.findOne({ mobileNo, countryCode });
+    // if (!customer) {
+    //   return res.status(404).json({ message: "Customer not found.", success: false });
+    // }
 
+    let customer = await Customer.findOne({ mobileNo, countryCode });
+
+    if (!customer) {
+      customer = await Customer.create({
+        fullName: null,
+        email: null,
+        countryCode,
+        mobileNo,
+      });
+    }
+    
     const testNumbers = ["6351635713", "7984865391"];
     let otp = "1234";
 
@@ -87,12 +98,12 @@ export const generateOtp = async (req, res) => {
       { upsert: true, new: true }
     );
 
-    // if (!testNumbers.includes(mobileNo)) {
-    //   const sendResult = await sendOtp(mobileNo, otp);
-    //   if (!sendResult.success) {
-    //     return sendResponse(res, 500, false, "Failed to send OTP");
-    //   }
-    // }
+    if (!testNumbers.includes(mobileNo)) {
+      const sendResult = await sendOtp(mobileNo, otp);
+      if (!sendResult.success) {
+        return sendResponse(res, 500, false, "Failed to send OTP");
+      }
+    }
 
     return sendResponse(res, 201, true, "OTP sent to your mobile number.");
   } catch (err) {
@@ -100,6 +111,7 @@ export const generateOtp = async (req, res) => {
     return sendResponse(res, 500, false, err.message);
   }
 };
+
 
 export const generateOtpOld = async (req, res) => {
   try {
@@ -261,7 +273,7 @@ export const logout = async (req, res) => {
 export const updateProfile = async (req, res) => {
   try {
     const customerId = req.id;
-    const { fullName, fcmToken } = req.body;
+    const { fullName, email, fcmToken, isVerified } = req.body;
 
     let imageUrl;
 
@@ -276,16 +288,35 @@ export const updateProfile = async (req, res) => {
       fs.unlinkSync(imagePath); // Remove local file
     }
 
-    // Update customer full name and image
-    const updatedCustomer = await Customer.findByIdAndUpdate(
-      customerId,
-      {
-        ...(fullName && { fullName }),
-        ...(imageUrl && { image: imageUrl }),
-        ...(fcmToken && { fcmToken }),
-      },
-      { new: true }
-    );
+    // Prepare update data
+    const updateData = {
+      ...(fullName && { fullName }),
+      ...(imageUrl && { image: imageUrl }),
+      ...(fcmToken && { fcmToken }),
+    };
+
+    // Check for email duplication if new email is provided
+    if (email) {
+      const existingCustomer = await Customer.findOne({
+        email: email,
+        _id: { $ne: customerId },
+      });
+
+      if (existingCustomer) {
+        return sendResponse(res, 400, false, "Email is already in use by another account.");
+      }
+
+      updateData.email = email;
+    }
+
+    // Handle isVerified if explicitly provided (e.g., true/false)
+    if (isVerified === "true") {
+      updateData.isVerified = true;
+    }
+
+    const updatedCustomer = await Customer.findByIdAndUpdate(customerId, updateData, {
+      new: true,
+    });
 
     return sendResponse(res, 200, true, "Profile updated successfully", {
       customer: updatedCustomer,
