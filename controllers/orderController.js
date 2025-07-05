@@ -207,15 +207,7 @@ export const createOrder = async (req, res) => {
       cgst: roundToTwo(cart?.cgst) || 0,
       sgst: roundToTwo(cart?.sgst) || 0,
       sgst: roundToTwo(cart?.sgst) || 0,
-      totalAmount:
-        roundToTwo(
-          cart?.sub_total_amount +
-            (cart?.platform_fee || 0) +
-            (cart?.delivery_fee || 0) +
-            (cart?.cgst || 0) +
-            (cart?.sgst || 0) -
-            (cart?.discountAmount || 0)
-        ) || 0,
+      totalAmount:roundToTwo(cart?.total_amount) || 0,
       paymentStatus: paymentTypeId === 1 ? "Success" : "Pending",
     });
 
