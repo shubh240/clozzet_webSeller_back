@@ -58,7 +58,7 @@ export const createOrder = async (req, res) => {
   try {
     const {
       cartId,
-      customerAddressId,
+      // customerAddressId,
       paymentTypeId, // 1 = COD, 2 = Online
     } = req.body;
 
@@ -81,7 +81,7 @@ export const createOrder = async (req, res) => {
      */
     const cart = await Cart.findOne({ _id: cartId });
     if (!cart) return sendResponse(res, 404, false, "Cart not found");
-    // const customerAddressId = cart?.customerAddressId
+    const customerAddressId = cart?.customerAddressId
     /**
      * Store In-Active (cannot place order)
      */
