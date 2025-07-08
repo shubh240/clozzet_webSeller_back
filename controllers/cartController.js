@@ -96,9 +96,9 @@ export const addToCart = async (req, res) => {
 
 export const updateCartProduct = async (req, res) => {
   try {
-    const { cartproductId, sizeId, quantity } = req.body;
+    const { cartproductId, sizeId, quantity, customerAddressId  } = req.body;
 
-    if (!cartproductId || !sizeId || !quantity || quantity < 1) {
+    if (!cartproductId || !sizeId || !quantity || !customerAddressId || quantity < 1) {
       return sendResponse(res, 400, false, "Missing or invalid fields");
     }
 
@@ -135,14 +135,14 @@ export const updateCartProduct = async (req, res) => {
       return sendResponse(res, 404, false, "Cart product not found");
     }
 
-    // 🔁 Recalculate totals for the parent cart
     const cartId = updatedCart.cartId;
-    const cartData = await Cart.findById(cartId);
+    const cartData = await Cart.findById(cartId);  
+    if (customerAddressId) {
+      cartData.customerAddressId = customerAddressId;
+      await cartData.save();
+    }
     const storeId = cartData.storeId;
-    const customerAddressId = cartData?.customerAddressId;
-    // await calculateAndUpdateCartTotals(cartId);
     await calculateAndUpdateCartTotals(cartId, storeId, customerAddressId);
-
 
     return sendResponse(res, 200, true, "Cart product updated", updatedCart);
   } catch (error) {
