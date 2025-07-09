@@ -60,7 +60,7 @@ export const addToCart = async (req, res) => {
 
     let cart = await Cart.findOne({ customerId, storeId });
     if (!cart) {
-      cart = await Cart.create({ customerId, storeId,sellerId });
+      cart = await Cart.create({ customerId, storeId,sellerId,customerAddressId });
     }
 
     const cartProduct = await CartProduct.findOne({
@@ -93,6 +93,42 @@ export const addToCart = async (req, res) => {
     return sendResponse(res, 500, false, error.message);
   }
 };
+
+export const updateCartAddress = async (req, res) => {
+  try {
+    const { cartId, customerAddressId } = req.body;
+    const customerId = req.id;
+
+    if (!cartId || !customerAddressId) {
+      return sendResponse(res, 400, false, "Missing cartId or customerAddressId");
+    }
+
+    // Validate cart exists and belongs to the customer
+    const cart = await Cart.findOne({ _id: cartId, customerId });
+    if (!cart) {
+      return sendResponse(res, 404, false, "Cart not found");
+    }
+
+    // Optional: Validate address is valid and belongs to the customer
+    const address = await CustomerAddress.findOne({ _id: customerAddressId, customerId });
+    if (!address) {
+      return sendResponse(res, 404, false, "Customer address not found");
+    }
+
+    // Update the address
+    cart.customerAddressId = customerAddressId;
+    await cart.save();
+
+    // Recalculate totals with new address (e.g., for delivery fees or taxes)
+    await calculateAndUpdateCartTotals(cart._id, cart.storeId, customerAddressId);
+
+    return sendResponse(res, 200, true, "Cart address updated successfully");
+  } catch (error) {
+    console.error("Update Cart Address Error:", error);
+    return sendResponse(res, 500, false, error.message);
+  }
+};
+
 
 export const updateCartProduct = async (req, res) => {
   try {
