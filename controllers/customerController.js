@@ -231,6 +231,7 @@ export const verifyOtp = async (req, res) => {
           email: customer.email,
           mobileNo: customer.mobileNo,
           isActive: customer.isActive,
+          isVerified: customer.isActive,
         },
       }
     );
