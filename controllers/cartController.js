@@ -368,7 +368,7 @@ export const calculateAndUpdateCartTotals = async (cartId, storeId, customerAddr
     0
   );
 
-  const neededConfigKeys = ["platformfee", "deliveryfee", "cgst", "sgst"];
+  const neededConfigKeys = ["platformfee", "long_distance_fee", "cgst", "sgst"];
   const configMap = await getConfigsByNames(neededConfigKeys);
 
   let delivery_fee = 0;
@@ -398,8 +398,8 @@ export const calculateAndUpdateCartTotals = async (cartId, storeId, customerAddr
         );
 
         if (distance > 8) {
-          delivery_fee = configMap.deliveryfee
-            ? roundToTwo(parseFloat(configMap.deliveryfee))
+          delivery_fee = configMap.long_distance_fee
+            ? roundToTwo(parseFloat(configMap.long_distance_fee))
             : 0;
         }
       }
