@@ -242,6 +242,8 @@ export const getProducts = async (req, res) => {
                   $and: [
                     { $eq: ["$sellerAuthId", "$$sellerId"] },
                     { $eq: ["$is_deleted", false] },
+                    { $eq: ["$isActive", true] },
+                    { $eq: ["$storeOn", true] },
                   ],
                 },
               },
@@ -412,6 +414,8 @@ export const getProductById = async (req, res) => {
                   $and: [
                     { $eq: ["$sellerAuthId", "$$sellerId"] },
                     { $eq: ["$is_deleted", false] },
+                    { $eq: ["$isActive", true] },
+                    { $eq: ["$storeOn", true] }, 
                   ],
                 },
               },
@@ -425,8 +429,13 @@ export const getProductById = async (req, res) => {
       },
       {
         $addFields: {
-          storeInfo: { $arrayElemAt: ["$storeInfo", 0] }
-        }
+          storeInfo: { $arrayElemAt: ["$storeInfo", 0] },
+        },
+      },
+      {
+        $match: {
+          "storeInfo._id": { $exists: true, $ne: null },
+        },
       },
       {
         $lookup: {
@@ -858,6 +867,7 @@ export const universalProductList = async (req, res) => {
                     { $eq: ["$sellerAuthId", "$$sellerId"] },
                     { $eq: ["$is_deleted", false] },
                     { $eq: ["$isActive", true] },
+                    { $eq: ["$storeOn", true] }
                   ],
                 },
               },
@@ -1016,6 +1026,7 @@ export const homePageProductList = async (req, res) => {
                     { $eq: ["$sellerAuthId", "$$sellerId"] },
                     { $eq: ["$is_deleted", false] },
                     { $eq: ["$isActive", true] },
+                    { $eq: ["$storeOn", true] },
                   ],
                 },
               },
@@ -1119,7 +1130,7 @@ export const globalSearch = async (req, res) => {
           ]
         : []),
 
-      { $match: { isDeleted: false } },
+      // { $match: { isDeleted: false } },
 
       // JOIN category
       {
@@ -1220,6 +1231,7 @@ export const globalSearch = async (req, res) => {
                     { $eq: ["$sellerAuthId", "$$sellerId"] },
                     { $eq: ["$is_deleted", false] },
                     { $eq: ["$isActive", true] },
+                    { $eq: ["$storeOn", true] },
                   ],
                 },
               },
