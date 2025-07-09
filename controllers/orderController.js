@@ -127,7 +127,6 @@ export const createOrder = async (req, res) => {
       customerLat,
       customerLng
     );
-    console.log("distance", distance);
 
     if (distance > 15) {
       return sendResponse(
