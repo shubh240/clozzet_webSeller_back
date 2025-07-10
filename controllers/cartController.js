@@ -445,8 +445,38 @@ export const calculateAndUpdateCartTotals = async (cartId, storeId, customerAddr
   const platform_fee = configMap.platformfee ? roundToTwo(parseFloat(configMap.platformfee)) : 0;
   const cgst = configMap.cgst ? roundToTwo(parseFloat(configMap.cgst)) : 0;
   const sgst = configMap.sgst ? roundToTwo(parseFloat(configMap.sgst)) : 0;
+ const cart = await Cart.findById(cartId);
+  let discountAmount = 0;
 
-  const total_amount = roundToTwo(sub_total_amount + platform_fee + delivery_fee + cgst + sgst);
+  if (cart?.couponCode) {
+    const coupon = await Coupon.findOne({
+      couponCode: cart.couponCode,
+      storeId: new mongoose.Types.ObjectId(storeId),
+      is_deleted: false,
+      isActive: true,
+      validFrom: { $lte: new Date() },
+      validTill: { $gte: new Date() },
+    });
+
+    if (coupon && sub_total_amount >= coupon.minOrderAmount) {
+      if (coupon.discountType === "flat") {
+        discountAmount = coupon.discountValue;
+      } else if (coupon.discountType === "percentage") {
+        discountAmount = (sub_total_amount * coupon.discountValue) / 100;
+        if (coupon.maxDiscountAmount && discountAmount > coupon.maxDiscountAmount) {
+          discountAmount = coupon.maxDiscountAmount;
+        }
+      }
+    } else {
+      // ❌ If coupon becomes invalid, remove it from cart
+      cart.couponCode = null;
+    }
+  }
+
+  const originalTotal = sub_total_amount + platform_fee + delivery_fee + cgst + sgst;
+  const total_amount = roundToTwo(originalTotal - discountAmount);
+
+  // const total_amount = roundToTwo(sub_total_amount + platform_fee + delivery_fee + cgst + sgst);
 
   await Cart.findByIdAndUpdate(cartId, {
     sub_total_amount: roundToTwo(sub_total_amount),
@@ -454,6 +484,7 @@ export const calculateAndUpdateCartTotals = async (cartId, storeId, customerAddr
     delivery_fee,
     cgst,
     sgst,
+    discountAmount : roundToTwo(discountAmount ),
     total_amount,
   });
 
@@ -463,6 +494,7 @@ export const calculateAndUpdateCartTotals = async (cartId, storeId, customerAddr
     delivery_fee,
     cgst,
     sgst,
+    discountAmount: roundToTwo(discountAmount),
     total_amount,
   };
 };
