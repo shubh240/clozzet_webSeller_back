@@ -17,5 +17,6 @@ build/
 .idea/
 
 # Firebase secret key
-config/firebase-service-key.json
-config/firebase.config.js
+
+**/firebase-service-key.json
+**/firebase.config.js
